@@ -1,7 +1,6 @@
 import { shellView, feedView, optionView, bridgeView } from './views.js';
 import { getArchive, createUtterance } from './services/archive.js';
 import { createArtifact, createTranscription } from './services/artifacts.js';
-import { createLegacyUtteranceEntry } from './services/legacy.js';
 import { renderLibrary } from './views/library.js';
 import { getUtteranceInspection } from './services/inspect.js';
 import { inspectView } from './views/inspect.js';
@@ -13,11 +12,7 @@ class AllISayApp {
     const existing = await archive.listUtterances({ status: 'kept', limit: Infinity });
     this.entries = existing.length ? existing : await this.seed();
   }
-  async seed() {
-    const fallback = [{ id: 'seed-1', text: 'The true weight of water is that it is there.', date: 'Earlier', threads: ['Is', 'Jala Yāna'], kind: 'statement' }, { id: 'seed-2', text: 'No cause cares what it causes and no effect cares what caused it.', date: 'Earlier', threads: ['Undir Sólu', 'causality'], kind: 'statement' }, { id: 'seed-3', text: 'I am caused, yet I cause.', date: 'Earlier', threads: ['sovereignty', 'causality'], kind: 'statement' }];
-    for (const item of fallback) await createLegacyUtteranceEntry(item);
-    return this.loadEntries();
-  }
+  async seed() { return this.loadEntries(); }
   async loadEntries() { const archive = await getArchive(); return archive.listUtterances({ status: 'kept', limit: Infinity }); }
   async refreshFromArchive() { this.entries = await this.loadEntries(); this.refreshDataViews(); }
   mount() { this.root.innerHTML = shellView(this.entries); this.bind(); this.refreshDataViews(); }

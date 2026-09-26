@@ -41,3 +41,9 @@ test('dry-run validates without writing',async()=>{
 test('duplicate ids inside an import are rejected',()=>{
  const u=createUtterance({id:'same',text:'words'});assert.throws(()=>validateImportPayload({exportFormatVersion:2,utterances:[u,u],artifacts:[],transcriptions:[],relations:[]}),/Duplicate utterance/);
 });
+
+test('artifact transcription does not become utterance text implicitly',()=>{
+ const u=createUtterance({id:'artifact-only',text:null,metadata:{status:'awaiting-transcription'},source:{type:'imported',artifactIds:['art-1']}});
+ assert.equal(u.text,null);
+ assert.deepEqual(u.source.artifactIds,['art-1']);
+});

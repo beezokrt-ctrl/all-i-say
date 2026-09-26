@@ -1,7 +1,6 @@
-import { APP_CONFIG } from './config.js';
-import { getArchive } from '../services/archive.js';
-import { seedArchiveIfEmpty } from '../services/seed.js';
 import { shellView, feedView, optionView, bridgeView } from './views.js';
+import { getArchive, createUtterance, on } from './archive.js';
+import { createLegacyUtteranceEntry } from './legacy.js';
 
 class AllISayApp {
   constructor(root) {
@@ -11,13 +10,30 @@ class AllISayApp {
   }
 
   async init() {
-    // Initialize IndexedDB and populate with seed data if empty
-    await seedArchiveIfEmpty();
-    this.entries = await this.loadEntries();
+    const archive = await getArchive();
+    const seed = await archive.listUtterances({ status: 'kept', limit: Infinity });
+    this.entries = seed.length ? seed : await this.seed();
+    on('utterance:created', () => this.refreshFromArchive());
   }
 
-  async loadEntries() {
-    return getArchive().then(archive => archive.listUtterances({ status: 'kept', limit: Infinity }));
+  async seed() {
+    const archive = await getArchive();
+    const fallback = [
+      { id: 'seed-1', text: 'The true weight of water is that it is there.', date: 'Earlier', threads: ['Is', 'Jala Yāna'], kind: 'statement' },
+      { id: 'seed-2', text: 'No cause cares what it causes and no effect cares what caused it.', date: 'Earlier', threads: ['Undir Sólu', 'causality'], kind: 'statement' },
+      { id: 'seed-3', text: 'I am caused, yet I cause.', date: 'Earlier', threads: ['sovereignty', 'causality'], kind: 'statement' }
+    ];
+
+    for (const item of fallback) {
+      await createLegacyUtteranceEntry(item);
+    }
+    return archive.listUtterances({ status: 'kept', limit: Infinity });
+  }
+
+  async refreshFromArchive() {
+    const archive = await getArchive();
+    this.entries = await archive.listUtterances({ status: 'kept', limit: Infinity });
+    this.refreshDataViews();
   }
 
   mount() {
@@ -50,33 +66,42 @@ class AllISayApp {
   async saveEntry() {
     const input = document.querySelector('#entryText');
     if (!input?.value.trim()) return;
-    const { createUtterance } = await import('../services/archive.js');
-    const newUtterance = await createUtterance({
+
+    await createLegacyUtteranceEntry({
       text: input.value,
-      metadata: { form: 'fragment', threads: ['Unplaced'], status: 'kept' },
+      date: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+      threads: ['Unplaced'],
+      kind: 'statement',
       source: { type: 'typed' }
     });
+
     input.value = '';
-    this.entries = await this.loadEntries();
-    this.refreshDataViews();
+    await this.refreshFromArchive();
     this.navigate('home');
   }
 
   refreshDataViews() {
+    if (!this.entries.length) {
+      document.querySelector('#count').textContent = '0 positions';
+      document.querySelector('#feed').innerHTML = feedView(this.entries);
+      return;
+    }
     document.querySelector('#count').textContent = `${this.entries.length} positions`;
     document.querySelector('#feed').innerHTML = feedView(this.entries);
     const a = document.querySelector('#betweenA');
     const b = document.querySelector('#betweenB');
-    a.innerHTML = optionView(this.entries, 0);
-    b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1));
-    this.renderBetween();
+    if (a && b) {
+      a.innerHTML = optionView(this.entries, 0);
+      b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1));
+      this.renderBetween();
+    }
   }
 
   renderDrift() {
     if (!this.entries.length) return;
     const entry = this.entries[Math.floor(Math.random() * this.entries.length)];
     document.querySelector('#driftQuote').textContent = entry.text;
-    document.querySelector('#driftMeta').textContent = `${entry.displayDate || entry.date || 'Undated'} · ${(entry.metadata?.threads || ['Unplaced']).join(' · ')}`;
+    document.querySelector('#driftMeta').textContent = `${entry.displayDate || 'Undated'} · ${(entry.metadata?.threads || ['Unplaced']).join(' · ')}`;
   }
 
   renderBetween() {
@@ -87,7 +112,6 @@ class AllISayApp {
   }
 }
 
-// Initialize and mount when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', async () => {
     const app = new AllISayApp(document.querySelector('#app'));

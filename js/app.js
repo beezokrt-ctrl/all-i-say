@@ -6,6 +6,7 @@ import { getUtteranceInspection } from './services/inspect.js';
 import { inspectView } from './views/inspect.js';
 import { searchArchive } from './services/search.js';
 import { getPlaces } from './services/places.js';
+import { getBetweenData } from './services/between.js';
 
 class AllISayApp {
   constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.driftId = null; }
@@ -45,7 +46,7 @@ class AllISayApp {
   }
   refreshDataViews() { document.querySelector('#count').textContent = `${this.entries.length} positions`; document.querySelector('#feed').innerHTML = feedView(this.entries); const a = document.querySelector('#betweenA'); const b = document.querySelector('#betweenB'); if (a && b) { a.innerHTML = optionView(this.entries, 0); b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1)); this.renderBetween(); } }
   renderDrift() { if (!this.entries.length) return; const pool=this.entries.length>1?this.entries.filter(e=>e.id!==this.driftId):this.entries; const entry=pool[Math.floor(Math.random()*pool.length)]; this.driftId=entry.id; document.querySelector('#driftQuote').textContent=entry.text??'[Artifact preserved; no canonical utterance text]'; document.querySelector('#driftMeta').textContent=entry.temporal?.display||'Undated'; const inspect=document.querySelector('#driftInspect'); if(inspect) inspect.hidden=false; }
-  renderBetween() { if (!this.entries.length) return; const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value; document.querySelector('#bridge').innerHTML=bridgeView(this.entries.find(e=>e.id===aid),this.entries.find(e=>e.id===bid)); }
+  async renderBetween() { if (!this.entries.length) return; const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value, mount=document.querySelector('#bridge'); if(!aid||!bid||!mount)return; const data=await getBetweenData(aid,bid); mount.innerHTML=bridgeView(data.from,data.to,data.relations); }
   async renderLibrary(){ const mount=document.querySelector('#libraryMount'); if(mount) mount.innerHTML=await renderLibrary({}); }
   async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; const results=query?await searchArchive(query):[]; mount.innerHTML=this.searchMarkup(results,query); }
   searchMarkup(results,query){ const items=results.map(item=>'<article class="library-item" data-entry-id="'+this.escape(item.id)+'"><div class="eyebrow">'+this.escape(item.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(item.text??'[Artifact preserved]')+'</blockquote></article>').join(''); return '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2><form id="searchForm" class="search-form"><input id="searchInput" class="search-input" value="'+this.escape(query)+'" placeholder="Words, thread, or form"><button class="button-primary">Search</button></form><div class="library-results">'+(query?(items||'<p class="note">Nothing matches those words.</p>'):'<p class="note">Search the record without changing it.</p>')+'</div>'; }

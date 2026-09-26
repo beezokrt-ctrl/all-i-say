@@ -118,3 +118,20 @@ test('skip-equivalence distinguishes identical records from divergent words and 
  assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abc'],{type:'text/plain'})}),true);
  assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abd'],{type:'text/plain'})}),false);
 });
+
+
+test('Places keeps legacy thread labels visibly noncanonical', async()=>{
+ const { placesView } = await import('../js/views/places.js');
+ const html=placesView([],[{name:'Undir Sólu',count:1,utterances:[]}]);
+ assert.match(html,/Earlier thread labels/);
+ assert.match(html,/Not constellations until you say so/);
+ assert.doesNotMatch(html,/data-constellation-id="Undir Sólu"/);
+});
+
+test('constellation view gathers a position without claiming ownership', async()=>{
+ const { placesView } = await import('../js/views/places.js');
+ const html=placesView([{constellation:{id:'con-one',name:'Undir Sólu',aliases:[],description:null},count:1,utterances:[]}],[]);
+ assert.match(html,/data-constellation-id="con-one"/);
+ assert.match(html,/without owning them/);
+ assert.match(html,/does not say they belong only here/);
+});

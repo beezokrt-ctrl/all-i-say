@@ -13,6 +13,12 @@ export class ArchiveRepository {
   async createRelation(_data) { throw new Error('Not implemented: createRelation'); }
   async listRelations(_filters = {}) { throw new Error('Not implemented: listRelations'); }
   async withdrawRelation(_id, _reason = null) { throw new Error('Not implemented: withdrawRelation'); }
+  async createConstellation(_data) { throw new Error('Not implemented: createConstellation'); }
+  async getConstellation(_id) { throw new Error('Not implemented: getConstellation'); }
+  async listConstellations(_filters = {}) { throw new Error('Not implemented: listConstellations'); }
+  async createMembership(_data) { throw new Error('Not implemented: createMembership'); }
+  async listMemberships(_filters = {}) { throw new Error('Not implemented: listMemberships'); }
+  async withdrawMembership(_id, _reason = null) { throw new Error('Not implemented: withdrawMembership'); }
   async getSchemaVersion() { throw new Error('Not implemented: getSchemaVersion'); }
   async exportAll() { throw new Error('Not implemented: exportAll'); }
   async importAll(_payload, _options = {}) { throw new Error('Not implemented: importAll'); }

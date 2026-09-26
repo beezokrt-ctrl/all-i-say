@@ -39,17 +39,19 @@ r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('Unable to open
  async withdrawMembership(id,reason=null){const db=await this.open(),tx=db.transaction(MEMBERSHIPS,'readwrite'),s=tx.objectStore(MEMBERSHIPS),cur=await result(s.get(id));if(!cur)throw new Error(`Unknown membership: ${id}`);const v={...cur,status:'withdrawn',deletedAt:new Date().toISOString(),withdrawalReason:reason};validateMembership(v);s.put(clone(v));await complete(tx);return clone(v);}
  async importAll(payload,{conflict='error'}={}){
   if(!['error','skip'].includes(conflict))throw new Error('Unsupported import conflict policy');
-  const db=await this.open(),names=[UTTERANCES,ARTIFACTS,TRANSCRIPTIONS,RELATIONS],tx=db.transaction(names,'readwrite');
-  const stores={utterances:tx.objectStore(UTTERANCES),artifacts:tx.objectStore(ARTIFACTS),transcriptions:tx.objectStore(TRANSCRIPTIONS),relations:tx.objectStore(RELATIONS)};
+  const db=await this.open(),names=[UTTERANCES,ARTIFACTS,TRANSCRIPTIONS,RELATIONS,CONSTELLATIONS,MEMBERSHIPS],tx=db.transaction(names,'readwrite');
+  const stores={utterances:tx.objectStore(UTTERANCES),artifacts:tx.objectStore(ARTIFACTS),transcriptions:tx.objectStore(TRANSCRIPTIONS),relations:tx.objectStore(RELATIONS),constellations:tx.objectStore(CONSTELLATIONS),memberships:tx.objectStore(MEMBERSHIPS)};
   const existing=async(store,id)=>Boolean(await result(store.get(id)));
   try{
    for(const u of payload.utterances){if(await existing(stores.utterances,u.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: utterance ${u.id}`);}stores.utterances.add(clone(u));}
    for(const a of payload.artifacts){if(await existing(stores.artifacts,a.meta.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: artifact ${a.meta.id}`);}stores.artifacts.add({...clone(a.meta),blob:a.blob});}
    for(const t of payload.transcriptions){if(await existing(stores.transcriptions,t.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: transcription ${t.id}`);}stores.transcriptions.add(clone(t));}
    for(const r of payload.relations){if(await existing(stores.relations,r.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: relation ${r.id}`);}stores.relations.add(clone(r));}
+   for(const x of payload.constellations){if(await existing(stores.constellations,x.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: constellation ${x.id}`);}stores.constellations.add(clone(x));}
+   for(const m of payload.memberships){if(await existing(stores.memberships,m.id)){if(conflict==='skip')continue;throw new Error(`Import conflict: membership ${m.id}`);}stores.memberships.add(clone(m));}
   }catch(error){tx.abort();throw error;}
   await complete(tx);
-  return {success:true,dryRun:false,counts:{utterances:payload.utterances.length,artifacts:payload.artifacts.length,transcriptions:payload.transcriptions.length,relations:payload.relations.length},conflict};
+  return {success:true,dryRun:false,counts:{utterances:payload.utterances.length,artifacts:payload.artifacts.length,transcriptions:payload.transcriptions.length,relations:payload.relations.length,constellations:payload.constellations.length,memberships:payload.memberships.length},conflict};
  }
  async getSchemaVersion(){return SCHEMA_VERSION;}
 }

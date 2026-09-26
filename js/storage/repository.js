@@ -6,6 +6,7 @@ export class ArchiveRepository {
   async tombstoneUtterance(_id, _reason = null) { throw new Error('Not implemented: tombstoneUtterance'); }
   async createArtifact(_blob, _meta = {}) { throw new Error('Not implemented: createArtifact'); }
   async getArtifact(_id) { throw new Error('Not implemented: getArtifact'); }
+  async listArtifacts() { throw new Error('Not implemented: listArtifacts'); }
   async createTranscription(_data) { throw new Error('Not implemented: createTranscription'); }
   async listTranscriptions(_filters = {}) { throw new Error('Not implemented: listTranscriptions'); }
   async confirmTranscription(_id, _attestation = {}) { throw new Error('Not implemented: confirmTranscription'); }

@@ -32,7 +32,9 @@ class AllISayApp {
       artifactId = artifact.id;
       if (transcriptionText) await createTranscription({ artifactId, text: transcriptionText, attestation: { state: 'confirmed-by-author', confirmedAt: new Date().toISOString() }, provenance: { origin: 'author', actorId: 'owner' } });
     }
-    await createUtterance({ text: input?.value.trim() || (transcriptionText || null), temporal: { earliest: new Date().toISOString().slice(0,10), latest: new Date().toISOString().slice(0,10), precision: 'day', display: new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }, source: { type: file ? 'imported' : 'typed', artifactIds: artifactId ? [artifactId] : [] }, metadata: { form: 'fragment', threads: ['Unplaced'], status: input?.value.trim() ? 'kept' : 'awaiting-transcription' } });
+    const now = new Date();
+    const localDay = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-');
+    await createUtterance({ text: input?.value.trim() || null, temporal: { earliest: localDay, latest: localDay, precision: 'day', display: now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }, source: { type: file ? 'imported' : 'typed', artifactIds: artifactId ? [artifactId] : [] }, metadata: { form: 'fragment', threads: ['Unplaced'], status: input?.value.trim() ? 'kept' : 'awaiting-transcription' } });
     if (input) input.value = '';
     if (document.querySelector('#artifactFile')) document.querySelector('#artifactFile').value = '';
     if (document.querySelector('#artifactTranscription')) document.querySelector('#artifactTranscription').value = '';

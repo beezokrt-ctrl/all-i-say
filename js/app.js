@@ -4,6 +4,8 @@ import { createArtifact, createTranscription } from './services/artifacts.js';
 import { renderLibrary } from './views/library.js';
 import { getUtteranceInspection } from './services/inspect.js';
 import { inspectView } from './views/inspect.js';
+import { searchArchive } from './services/search.js';
+import { getPlaces } from './services/places.js';
 
 class AllISayApp {
   constructor(root) { this.root = root; this.entries = []; this.route = 'home'; }
@@ -17,10 +19,11 @@ class AllISayApp {
   async refreshFromArchive() { this.entries = await this.loadEntries(); this.refreshDataViews(); }
   mount() { this.root.innerHTML = shellView(this.entries); this.bind(); this.refreshDataViews(); }
   bind() {
-    this.root.addEventListener('click', event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'newDrift') this.renderDrift(); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
+    this.root.addEventListener('click', event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.matches('[data-place]')) this.renderPlace(event.target.closest('[data-place]').dataset.place); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
+    this.root.addEventListener('submit', event => { if (event.target.id === 'searchForm') { event.preventDefault(); this.renderSearch(document.querySelector('#searchInput')?.value || ''); } });
     this.root.addEventListener('change', event => { if (event.target.matches('#betweenA,#betweenB')) this.renderBetween(); });
   }
-  navigate(route) { this.route = route; document.querySelectorAll('.panel').forEach(el => el.classList.toggle('is-active', el.id === route)); document.querySelectorAll('.nav-button').forEach(el => el.classList.toggle('is-active', el.dataset.route === route)); window.scrollTo({ top: 0, behavior: 'instant' }); if (route === 'drift') this.renderDrift(); if (route === 'between') this.renderBetween(); if (route === 'library') this.renderLibrary(); }
+  navigate(route) { this.route = route; document.querySelectorAll('.panel').forEach(el => el.classList.toggle('is-active', el.id === route)); document.querySelectorAll('.nav-button').forEach(el => el.classList.toggle('is-active', el.dataset.route === route)); window.scrollTo({ top: 0, behavior: 'instant' }); if (route === 'drift') this.renderDrift(); if (route === 'between') this.renderBetween(); if (route === 'library') this.renderLibrary(); if (route === 'search') this.renderSearch(''); if (route === 'places') this.renderPlaces(); }
   async saveEntry() {
     const input = document.querySelector('#entryText');
     const file = document.querySelector('#artifactFile')?.files?.[0];
@@ -44,6 +47,11 @@ class AllISayApp {
   renderDrift() { if (!this.entries.length) return; const entry = this.entries[Math.floor(Math.random() * this.entries.length)]; document.querySelector('#driftQuote').textContent = entry.text ?? '[Awaiting transcription]'; document.querySelector('#driftMeta').textContent = `${entry.temporal?.display || 'Undated'} · ${(entry.metadata?.threads || ['Unplaced']).join(' · ')}`; }
   renderBetween() { if (!this.entries.length) return; const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value; document.querySelector('#bridge').innerHTML=bridgeView(this.entries.find(e=>e.id===aid),this.entries.find(e=>e.id===bid)); }
   async renderLibrary(){ const mount=document.querySelector('#libraryMount'); if(mount) mount.innerHTML=await renderLibrary({}); }
+  async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; const results=query?await searchArchive(query):[]; mount.innerHTML=this.searchMarkup(results,query); }
+  searchMarkup(results,query){ const items=results.map(item=>'<article class="library-item" data-entry-id="'+this.escape(item.id)+'"><div class="eyebrow">'+this.escape(item.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(item.text??'[Artifact preserved]')+'</blockquote></article>').join(''); return '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2><form id="searchForm" class="search-form"><input id="searchInput" class="search-input" value="'+this.escape(query)+'" placeholder="Words, thread, or form"><button class="button-primary">Search</button></form><div class="library-results">'+(query?(items||'<p class="note">Nothing matches those words.</p>'):'<p class="note">Search the record without changing it.</p>')+'</div>'; }
+  escape(value){ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+  async renderPlaces(){ const mount=document.querySelector('#placesMount'); if(!mount)return; this.places=await getPlaces(); mount.innerHTML='<div class="eyebrow">Places</div><h2 class="big-title">Where your words have gathered.</h2><p class="hero-copy">A place does not own what was said. It is one way of standing among it.</p><div class="places-grid">'+(this.places.map(p=>'<button class="place-card" data-place="'+this.escape(p.name)+'"><span class="place-name">'+this.escape(p.name)+'</span><span class="small">'+p.count+' positions</span></button>').join('')||'<p class="note">No places yet.</p>')+'</div><div id="placeDetail"></div>'; }
+  renderPlace(name){ const p=this.places?.find(x=>x.name===name),mount=document.querySelector('#placeDetail'); if(!p||!mount)return; mount.innerHTML='<div class="eyebrow">Place · '+this.escape(p.name)+'</div>'+p.utterances.map(u=>'<article class="entry" data-entry-id="'+this.escape(u.id)+'"><div class="eyebrow">'+this.escape(u.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(u.text??'[Artifact preserved]')+'</blockquote></article>').join(''); mount.scrollIntoView({behavior:'smooth'}); }
   async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
 }
 

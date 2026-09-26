@@ -1,1 +1,1 @@
-  async listRelations(_filters = {}) { throw new NotImplementedError('listRelations'); }
+  async importAll(_payload, _options = {}) { throw new NotImplementedError('importAll'); }

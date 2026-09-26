@@ -6,5 +6,6 @@ export async function getUtteranceInspection(id) {
   if (!utterance) return null;
   const artifacts = await Promise.all((utterance.source?.artifactIds || []).map(artifactId => archive.getArtifact(artifactId)));
   const transcriptions = (await Promise.all((utterance.source?.artifactIds || []).map(artifactId => archive.listTranscriptions({ artifactId })))).flat();
-  return { utterance, artifacts: artifacts.filter(Boolean), transcriptions };
+  const relations = await archive.listRelations({ utteranceId: id, status: undefined });
+  return { utterance, artifacts: artifacts.filter(Boolean), transcriptions, relations };
 }

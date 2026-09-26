@@ -60,3 +60,8 @@ test('search ranks exact archive words without rewriting them', async()=>{
  const { searchArchive } = await import('../js/services/search.js');
  assert.equal(typeof searchArchive,'function');
 });
+
+test('Between service is available without adding an inferred relation', async()=>{
+ const { getBetweenData } = await import('../js/services/between.js');
+ assert.equal(typeof getBetweenData,'function');
+});

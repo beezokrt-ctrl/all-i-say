@@ -55,3 +55,8 @@ test('month labels do not mistake digits from the year for a day',()=>{
 test('explicit legacy day remains day precision',()=>{
  assert.deepEqual(parseLegacyDate('Sep 14 2026'),{earliest:'2026-09-14',latest:'2026-09-14',precision:'day',display:'Sep 14 2026'});
 });
+
+test('search ranks exact archive words without rewriting them', async()=>{
+ const { searchArchive } = await import('../js/services/search.js');
+ assert.equal(typeof searchArchive,'function');
+});

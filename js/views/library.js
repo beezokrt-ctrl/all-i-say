@@ -1,29 +1,38 @@
 import { escapeHTML } from '../views.js';
 
 export async function renderLibrary(filters = {}) {
-  const { getLibraryItems, getFormTypes, getThreads } = await import('../services/library.js');
-  const forms = await getFormTypes();
-  const threads = await getThreads();
+  const { getLibraryItems } = await import('../services/library.js');
   const items = await getLibraryItems(filters);
-  
-  const formCheckboxes = forms.map(f => `<label><input type="checkbox" name="form" value="${escapeHTML(f)}" ${filters.form === f ? 'checked' : ''}><span>${escapeHTML(f)}</span></label>`).join('');
-  const threadCheckboxes = threads.map(t => `<label><input type="checkbox" name="thread" value="${escapeHTML(t)}" ${filters.thread === t ? 'checked' : ''}><span>${escapeHTML(t)}</span></label>`).join('');
-  
-  const itemsMarkup = items.length ? items.map(item => `<article class="library-item" data-entry-id="${escapeHTML(item.id)}"><div class="eyebrow">${escapeHTML(item.temporal?.display || 'Undated')}</div><blockquote class="entry-quote">${escapeHTML(item.text ?? '[Awaiting transcription]')}</blockquote><div class="meta">${(item.metadata?.threads || []).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</div></article>`).join('') : '<p class="note">No utterances match the current filters.</p>';
-  
-  return `<div class="library-view">
-    <div class="library-controls">
-      <div class="library-facet">
-        <h3>Form</h3>
-        <div class="facet-group">${formCheckboxes || '<p class="small">No forms found</p>'}</div>
-      </div>
-      <div class="library-facet">
-        <h3>Thread</h3>
-        <div class="facet-group">${threadCheckboxes || '<p class="small">No threads found</p>'}</div>
-      </div>
-    </div>
-    <div class="library-results">
-      ${itemsMarkup}
-    </div>
-  </div>`;
+  const groups = new Map();
+
+  for (const item of items) {
+    const label = item.temporal?.earliest?.slice(0, 4) || 'Undated';
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(item);
+  }
+
+  const years = [...groups.entries()].sort(([a], [b]) => {
+    if (a === 'Undated') return 1;
+    if (b === 'Undated') return -1;
+    return Number(b) - Number(a);
+  });
+
+  const record = years.map(([year, entries]) =>
+    '<section class="library-year"><div class="library-year-mark"><span>' + escapeHTML(year) +
+    '</span><span class="small">' + entries.length + ' position' + (entries.length === 1 ? '' : 's') +
+    '</span></div><div class="library-year-entries">' +
+    entries.map(item =>
+      '<article class="library-item" data-entry-id="' + escapeHTML(item.id) + '" tabindex="0">' +
+      '<div class="eyebrow">' + escapeHTML(item.temporal?.display || 'Undated') + '</div>' +
+      '<blockquote class="entry-quote">' + escapeHTML(item.text ?? '[Artifact preserved; no canonical utterance text]') +
+      '</blockquote><div class="meta">' +
+      (item.metadata?.threads || []).map(t => '<span class="tag">' + escapeHTML(t) + '</span>').join('') +
+      '</div></article>'
+    ).join('') + '</div></section>'
+  ).join('');
+
+  return '<div class="library-view"><header class="library-intro"><div class="eyebrow">Library</div>' +
+    '<h2 class="big-title">The whole record.</h2>' +
+    '<p class="hero-copy">Move through what was said. Search when you already know what you are looking for.</p></header>' +
+    '<div class="library-record">' + (record || '<p class="note">Nothing has been kept yet.</p>') + '</div></div>';
 }

@@ -1,7 +1,7 @@
 import { escapeHTML } from '../views.js';
 
 export async function renderLibrary(filters = {}) {
-  const { getLibraryItems, getFormTypes, getThreads } = await import('./library.js');
+  const { getLibraryItems, getFormTypes, getThreads } = await import('../services/library.js');
   const forms = await getFormTypes();
   const threads = await getThreads();
   const items = await getLibraryItems(filters);
@@ -9,9 +9,9 @@ export async function renderLibrary(filters = {}) {
   const formCheckboxes = forms.map(f => `<label><input type="checkbox" name="form" value="${escapeHTML(f)}" ${filters.form === f ? 'checked' : ''}><span>${escapeHTML(f)}</span></label>`).join('');
   const threadCheckboxes = threads.map(t => `<label><input type="checkbox" name="thread" value="${escapeHTML(t)}" ${filters.thread === t ? 'checked' : ''}><span>${escapeHTML(t)}</span></label>`).join('');
   
-  const itemsMarkup = items.length ? items.map(item => `<article class="library-item" data-entry-id="${escapeHTML(item.id)}"><div class="eyebrow">${escapeHTML(item.displayDate || 'Undated')}</div><blockquote class="entry-quote">${escapeHTML(item.text ?? '[Awaiting transcription]')}</blockquote><div class="meta">${(item.metadata?.threads || []).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</div></article>`).join('') : '<p class="note">No utterances match the current filters.</p>';
+  const itemsMarkup = items.length ? items.map(item => `<article class="library-item" data-entry-id="${escapeHTML(item.id)}"><div class="eyebrow">${escapeHTML(item.temporal?.display || 'Undated')}</div><blockquote class="entry-quote">${escapeHTML(item.text ?? '[Awaiting transcription]')}</blockquote><div class="meta">${(item.metadata?.threads || []).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('')}</div></article>`).join('') : '<p class="note">No utterances match the current filters.</p>';
   
-  return `<section id="library" class="panel">
+  return `<div class="library-view">
     <div class="library-controls">
       <div class="library-facet">
         <h3>Form</h3>
@@ -25,5 +25,5 @@ export async function renderLibrary(filters = {}) {
     <div class="library-results">
       ${itemsMarkup}
     </div>
-  </section>`;
+  </div>`;
 }

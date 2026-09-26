@@ -1,4 +1,4 @@
-import { SEED_ENTRIES } from '../data/seed.js';
+import { SEED_ENTRIES } from '../../data/seed.js';
 import { getArchive } from './archive.js';
 
 /**

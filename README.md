@@ -1,47 +1,46 @@
-# All I Say — modular build
+# All I Say
 
-This build separates **content, behavior, and visual design** so any one can change without rewriting the others.
+All I Say is a local-first archive of one person's actual words. The record and interpretations of the record are deliberately separate.
 
-## Structure
+## Archive invariants
 
-- `index.html` — only the document shell and asset imports.
-- `css/tokens.css` — palette, fonts, spacing, radii, sizes. Change the visual system here first.
-- `css/base.css` — global layout/accessibility primitives.
-- `css/components.css` — component-level styling.
-- `data/seed.js` — initial words only. No UI logic.
-- `js/config.js` — navigation and interface copy.
-- `js/store.js` — persistence and entry creation.
-- `js/views.js` — pure rendering functions.
-- `js/app.js` — event wiring and state orchestration.
+- `Utterance.text` is immutable. A correction is a new utterance plus a relation.
+- Artifact, Transcription, Utterance, Relation, Annotation, Interpretation, Constellation, and Suggestion are distinct concepts.
+- Uncertain time stays uncertain. The canonical temporal shape is `{ earliest, latest, precision, display }`; month/year precision is represented as an interval rather than a fabricated exact day.
+- Artifact media is preserved separately from any transcription or accepted utterance.
+- Deletion is tombstoning by default.
+- Storage is accessed through the repository contract.
 
-## Entry schema
+## Architecture
 
-Each entry is deliberately extensible:
+The app is intentionally framework-free and statically hostable.
 
-```js
-{
-  id: "stable-id",
-  text: "Exact words",
-  date: "Sep 2026",
-  threads: ["Darśana", "causality"],
-  kind: "question",
-  createdAt: "ISO timestamp" // new entries
-}
+- `js/domain/` — entity construction and invariants.
+- `js/storage/repository.js` — storage contract.
+- `js/storage/indexeddb.js` — browser persistence.
+- `js/storage/import.js` and `export.js` — portable archive boundary.
+- `js/services/` — application operations.
+- `js/views/` and `js/views.js` — rendering.
+- `data/schema.js` — validation and schema constants.
+- `docs/adr/` — architectural decisions.
+- `AGENTS.md` — non-negotiable implementation rules.
+
+## Development
+
+Serve the repository through a static server rather than opening `index.html` as `file://`.
+
+```sh
+python3 -m http.server 8080
 ```
 
-Future fields can be added without changing the basic archive: `context`, `sourceConversation`, `relations`, `revisions`, `media`, `place`, `parentId`, etc.
+Tests use Node's built-in test runner and add no runtime dependency:
 
-## Design rule
+```sh
+npm test
+```
 
-Exact words are data. Their visual presentation is a view. Do not bake philosophy, labels, or interpretation into the storage layer.
+## Content and licensing
 
-## Local use
+The software source is MIT-licensed. Personal writing/archive content is not part of that grant and should not be committed to the public source tree. New installations therefore begin with an empty archive. Personal archive data should move through the app's local storage and explicit export/import path.
 
-Because this uses JavaScript modules, serve the folder with any static server rather than opening `index.html` as `file://`.
-
-Example:
-`python3 -m http.server 8080`
-
-Then open `http://localhost:8080`.
-
-It is ready for static hosting such as Netlify.
+See `docs/adr/007-licensing-boundary.md`.

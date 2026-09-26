@@ -1,1 +1,1 @@
-  async listTranscriptions(_filters = {}) { throw new NotImplementedError('listTranscriptions'); }
+  async listRelations(_filters = {}) { throw new NotImplementedError('listRelations'); }

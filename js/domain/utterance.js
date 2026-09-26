@@ -1,5 +1,17 @@
 import { makeEntityId } from './ids.js';
-import { validateUtterance } from '../../data/schema.js';
+import { validateUtterance, validateTemporalWindow } from '../../data/schema.js';
+
+const temporal = input => {
+  const value = input?.temporal || { earliest: null, latest: null, precision: 'unknown', display: null };
+  const normalized = {
+    earliest: value.earliest ?? null,
+    latest: value.latest ?? null,
+    precision: value.precision || 'unknown',
+    display: value.display ?? null
+  };
+  validateTemporalWindow(normalized);
+  return normalized;
+};
 
 export function createUtterance(input = {}) {
   const status = input.metadata?.status || 'kept';
@@ -8,9 +20,7 @@ export function createUtterance(input = {}) {
     text: input.text === null ? null : String(input.text ?? ''),
     schemaVersion: 3,
     createdAt: input.createdAt || new Date().toISOString(),
-    spokenAt: input.spokenAt ?? null,
-    datePrecision: input.datePrecision || 'unknown',
-    displayDate: input.displayDate ?? null,
+    temporal: temporal(input),
     source: {
       type: input.source?.type || 'unknown',
       conversationId: input.source?.conversationId ?? null,

@@ -8,7 +8,7 @@ import { searchArchive } from './services/search.js';
 import { getPlaces } from './services/places.js';
 
 class AllISayApp {
-  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; }
+  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.driftId = null; }
   async init() {
     const archive = await getArchive();
     const existing = await archive.listUtterances({ status: 'kept', limit: Infinity });
@@ -19,7 +19,7 @@ class AllISayApp {
   async refreshFromArchive() { this.entries = await this.loadEntries(); this.refreshDataViews(); }
   mount() { this.root.innerHTML = shellView(this.entries); this.bind(); this.refreshDataViews(); }
   bind() {
-    this.root.addEventListener('click', event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.matches('[data-place]')) this.renderPlace(event.target.closest('[data-place]').dataset.place); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
+    this.root.addEventListener('click', event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.id === 'driftInspect' && this.driftId) this.inspect(this.driftId); if (event.target.id === 'inspectBack') this.navigate(this.returnRoute || 'home'); if (event.target.matches('[data-place]')) this.renderPlace(event.target.closest('[data-place]').dataset.place); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
     this.root.addEventListener('submit', event => { if (event.target.id === 'searchForm') { event.preventDefault(); this.renderSearch(document.querySelector('#searchInput')?.value || ''); } });
     this.root.addEventListener('change', event => { if (event.target.matches('#betweenA,#betweenB')) this.renderBetween(); });
   }
@@ -44,7 +44,7 @@ class AllISayApp {
     await this.refreshFromArchive(); this.navigate('home');
   }
   refreshDataViews() { document.querySelector('#count').textContent = `${this.entries.length} positions`; document.querySelector('#feed').innerHTML = feedView(this.entries); const a = document.querySelector('#betweenA'); const b = document.querySelector('#betweenB'); if (a && b) { a.innerHTML = optionView(this.entries, 0); b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1)); this.renderBetween(); } }
-  renderDrift() { if (!this.entries.length) return; const entry = this.entries[Math.floor(Math.random() * this.entries.length)]; document.querySelector('#driftQuote').textContent = entry.text ?? '[Awaiting transcription]'; document.querySelector('#driftMeta').textContent = `${entry.temporal?.display || 'Undated'} · ${(entry.metadata?.threads || ['Unplaced']).join(' · ')}`; }
+  renderDrift() { if (!this.entries.length) return; const pool=this.entries.length>1?this.entries.filter(e=>e.id!==this.driftId):this.entries; const entry=pool[Math.floor(Math.random()*pool.length)]; this.driftId=entry.id; document.querySelector('#driftQuote').textContent=entry.text??'[Artifact preserved; no canonical utterance text]'; document.querySelector('#driftMeta').textContent=entry.temporal?.display||'Undated'; const inspect=document.querySelector('#driftInspect'); if(inspect) inspect.hidden=false; }
   renderBetween() { if (!this.entries.length) return; const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value; document.querySelector('#bridge').innerHTML=bridgeView(this.entries.find(e=>e.id===aid),this.entries.find(e=>e.id===bid)); }
   async renderLibrary(){ const mount=document.querySelector('#libraryMount'); if(mount) mount.innerHTML=await renderLibrary({}); }
   async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; const results=query?await searchArchive(query):[]; mount.innerHTML=this.searchMarkup(results,query); }
@@ -52,7 +52,7 @@ class AllISayApp {
   escape(value){ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
   async renderPlaces(){ const mount=document.querySelector('#placesMount'); if(!mount)return; this.places=await getPlaces(); mount.innerHTML='<div class="eyebrow">Places</div><h2 class="big-title">Where your words have gathered.</h2><p class="hero-copy">A place does not own what was said. It is one way of standing among it.</p><div class="places-grid">'+(this.places.map(p=>'<button class="place-card" data-place="'+this.escape(p.name)+'"><span class="place-name">'+this.escape(p.name)+'</span><span class="small">'+p.count+' positions</span></button>').join('')||'<p class="note">No places yet.</p>')+'</div><div id="placeDetail"></div>'; }
   renderPlace(name){ const p=this.places?.find(x=>x.name===name),mount=document.querySelector('#placeDetail'); if(!p||!mount)return; mount.innerHTML='<div class="eyebrow">Place · '+this.escape(p.name)+'</div>'+p.utterances.map(u=>'<article class="entry" data-entry-id="'+this.escape(u.id)+'"><div class="eyebrow">'+this.escape(u.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(u.text??'[Artifact preserved]')+'</blockquote></article>').join(''); mount.scrollIntoView({behavior:'smooth'}); }
-  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
+  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect')this.returnRoute=this.route; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', async () => { const app = new AllISayApp(document.querySelector('#app')); await app.init(); app.mount(); });

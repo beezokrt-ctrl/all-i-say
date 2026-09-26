@@ -96,3 +96,25 @@ test('v2 exports remain importable with an empty constellation graph',()=>{
  assert.deepEqual(result.constellations,[]);
  assert.deepEqual(result.memberships,[]);
 });
+
+test('import may attach a new membership to archive entities already present', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const membership=createMembership({id:'m-existing',constellationId:'con-existing',utteranceId:'u-existing'});
+ const repository={
+  getUtterance:async id=>id==='u-existing'?{id}:undefined,
+  getConstellation:async id=>id==='con-existing'?{id}:undefined,
+  importAll(){throw new Error('dry run must not write');}
+ };
+ const payload={exportFormatVersion:3,utterances:[],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]};
+ const result=await importAll(repository,payload,{dryRun:true});
+ assert.equal(result.success,true);
+ assert.equal(result.counts.memberships,1);
+});
+
+test('skip-equivalence distinguishes identical records from divergent words and bytes', async()=>{
+ const { recordsEquivalent } = await import('../js/storage/conflict.js');
+ assert.equal(await recordsEquivalent({id:'u1',text:'same',metadata:{b:2,a:1}},{metadata:{a:1,b:2},text:'same',id:'u1'}),true);
+ assert.equal(await recordsEquivalent({id:'u1',text:'first light'},{id:'u1',text:'changed'}),false);
+ assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abc'],{type:'text/plain'})}),true);
+ assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abd'],{type:'text/plain'})}),false);
+});

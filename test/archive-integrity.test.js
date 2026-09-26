@@ -81,3 +81,18 @@ test('constellation membership is an assertion, not ownership', async()=>{
  assert.notEqual(first.constellationId,second.constellationId);
  assert.equal(first.status,'active');
 });
+
+test('import rejects membership whose constellation is absent', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const u=createUtterance({id:'u-member',text:'words'});
+ const membership=createMembership({id:'m-broken',constellationId:'missing',utteranceId:u.id});
+ const payload={exportFormatVersion:3,utterances:[u],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]};
+ assert.throws(()=>validateImportPayload(payload),/missing constellation/);
+});
+
+test('v2 exports remain importable with an empty constellation graph',()=>{
+ const u=createUtterance({id:'u-old-export',text:'older words'});
+ const result=validateImportPayload({exportFormatVersion:2,utterances:[u],artifacts:[],transcriptions:[],relations:[]});
+ assert.deepEqual(result.constellations,[]);
+ assert.deepEqual(result.memberships,[]);
+});

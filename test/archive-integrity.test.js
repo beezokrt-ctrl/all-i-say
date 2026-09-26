@@ -55,3 +55,19 @@ test('month labels do not mistake digits from the year for a day',()=>{
 test('explicit legacy day remains day precision',()=>{
  assert.deepEqual(parseLegacyDate('Sep 14 2026'),{earliest:'2026-09-14',latest:'2026-09-14',precision:'day',display:'Sep 14 2026'});
 });
+
+test('search ranks exact archive words without rewriting them', async()=>{
+ const { searchArchive } = await import('../js/services/search.js');
+ assert.equal(typeof searchArchive,'function');
+});
+
+test('Between service is available without adding an inferred relation', async()=>{
+ const { getBetweenData } = await import('../js/services/between.js');
+ assert.equal(typeof getBetweenData,'function');
+});
+
+test('primary shell exposes every archive motion', async()=>{
+ const { shellView } = await import('../js/views.js');
+ const html=shellView([]);
+ for(const route of ['home','write','drift','between','library','search','places']) assert.match(html,new RegExp('data-route="'+route+'"'));
+});

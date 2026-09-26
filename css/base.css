@@ -24,3 +24,4 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .small{font:400 11px/1.5 var(--font-meta);color:var(--color-text-dim)}
 .big-title{font-family:var(--font-display);font-size:clamp(54px,13vw,104px);line-height:.84;letter-spacing:-.055em;font-weight:300;margin:15px 0 42px}
 @media(min-width:760px){.main{padding-left:156px;padding-right:48px;padding-bottom:66px}}
+@media(max-width:759px){.rail{display:none!important}.main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}.big-title{overflow-wrap:anywhere}}

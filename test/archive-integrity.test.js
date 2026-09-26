@@ -71,3 +71,13 @@ test('primary shell exposes every archive motion', async()=>{
  const html=shellView([]);
  for(const route of ['home','write','drift','between','library','search','places']) assert.match(html,new RegExp('data-route="'+route+'"'));
 });
+
+test('constellation membership is an assertion, not ownership', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ const constellation=createConstellation({id:'con_test',name:'A place',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ const first=createMembership({id:'mem_one',constellationId:constellation.id,utteranceId:'utt_same',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ const second=createMembership({id:'mem_two',constellationId:'con_other',utteranceId:'utt_same',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ assert.equal(first.utteranceId,second.utteranceId);
+ assert.notEqual(first.constellationId,second.constellationId);
+ assert.equal(first.status,'active');
+});

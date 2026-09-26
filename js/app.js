@@ -1,12 +1,23 @@
-import { EntryStore } from './store.js';
+import { APP_CONFIG } from './config.js';
+import { getArchive } from '../services/archive.js';
+import { seedArchiveIfEmpty } from '../services/seed.js';
 import { shellView, feedView, optionView, bridgeView } from './views.js';
 
 class AllISayApp {
   constructor(root) {
     this.root = root;
-    this.store = new EntryStore();
-    this.entries = this.store.load();
+    this.entries = [];
     this.route = 'home';
+  }
+
+  async init() {
+    // Initialize IndexedDB and populate with seed data if empty
+    await seedArchiveIfEmpty();
+    this.entries = await this.loadEntries();
+  }
+
+  async loadEntries() {
+    return getArchive().then(archive => archive.listUtterances({ status: 'kept', limit: Infinity }));
   }
 
   mount() {
@@ -29,18 +40,24 @@ class AllISayApp {
 
   navigate(route) {
     this.route = route;
-    document.querySelectorAll('.panel').forEach(el=>el.classList.toggle('is-active',el.id===route));
-    document.querySelectorAll('.nav-button').forEach(el=>el.classList.toggle('is-active',el.dataset.route===route));
-    window.scrollTo({top:0,behavior:'instant'});
-    if (route==='drift') this.renderDrift();
-    if (route==='between') this.renderBetween();
+    document.querySelectorAll('.panel').forEach(el => el.classList.toggle('is-active', el.id === route));
+    document.querySelectorAll('.nav-button').forEach(el => el.classList.toggle('is-active', el.dataset.route === route));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (route === 'drift') this.renderDrift();
+    if (route === 'between') this.renderBetween();
   }
 
-  saveEntry() {
+  async saveEntry() {
     const input = document.querySelector('#entryText');
     if (!input?.value.trim()) return;
-    this.entries = this.store.add(this.entries,{text:input.value});
+    const { createUtterance } = await import('../services/archive.js');
+    const newUtterance = await createUtterance({
+      text: input.value,
+      metadata: { form: 'fragment', threads: ['Unplaced'], status: 'kept' },
+      source: { type: 'typed' }
+    });
     input.value = '';
+    this.entries = await this.loadEntries();
     this.refreshDataViews();
     this.navigate('home');
   }
@@ -50,24 +67,34 @@ class AllISayApp {
     document.querySelector('#feed').innerHTML = feedView(this.entries);
     const a = document.querySelector('#betweenA');
     const b = document.querySelector('#betweenB');
-    a.innerHTML = optionView(this.entries,0);
-    b.innerHTML = optionView(this.entries,Math.max(0,this.entries.length-1));
+    a.innerHTML = optionView(this.entries, 0);
+    b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1));
     this.renderBetween();
   }
 
   renderDrift() {
     if (!this.entries.length) return;
-    const entry = this.entries[Math.floor(Math.random()*this.entries.length)];
+    const entry = this.entries[Math.floor(Math.random() * this.entries.length)];
     document.querySelector('#driftQuote').textContent = entry.text;
-    document.querySelector('#driftMeta').textContent = `${entry.date||'Undated'} · ${(entry.threads||['Unplaced']).join(' · ')}`;
+    document.querySelector('#driftMeta').textContent = `${entry.displayDate || entry.date || 'Undated'} · ${(entry.metadata?.threads || ['Unplaced']).join(' · ')}`;
   }
 
   renderBetween() {
     if (!this.entries.length) return;
     const ai = Number(document.querySelector('#betweenA')?.value || 0);
     const bi = Number(document.querySelector('#betweenB')?.value || 0);
-    document.querySelector('#bridge').innerHTML = bridgeView(this.entries[ai],this.entries[bi]);
+    document.querySelector('#bridge').innerHTML = bridgeView(this.entries[ai], this.entries[bi]);
   }
 }
 
-new AllISayApp(document.querySelector('#app')).mount();
+// Initialize and mount when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', async () => {
+    const app = new AllISayApp(document.querySelector('#app'));
+    await app.init();
+    app.mount();
+  });
+} else {
+  const app = new AllISayApp(document.querySelector('#app'));
+  app.init().then(() => app.mount());
+}

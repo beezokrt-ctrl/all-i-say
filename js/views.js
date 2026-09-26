@@ -1,18 +1,17 @@
-import { APP_CONFIG } from './config.js';
+import { escapeHTML } from './views.js';
 
-export const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({
-  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-}[char]));
-
-const meta = entry => (entry.threads || ['Unplaced']).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('');
+const meta = entry => (entry.metadata?.threads || entry.threads || ['Unplaced']).map(t => `<span class="tag">${escapeHTML(t)}</span>`).join('');
 
 export function shellView(entries) {
   return `<div class="shell">
     <nav class="rail" aria-label="Primary">
-      ${APP_CONFIG.nav.map((item,i)=>`<button class="nav-button ${i===0?'is-active':''}" data-route="${item.id}">${item.label}</button>`).join('')}
+      <button class="nav-button is-active" data-route="home">Record</button>
+      <button class="nav-button" data-route="write">Say</button>
+      <button class="nav-button" data-route="drift">Drift</button>
+      <button class="nav-button" data-route="between">Between</button>
     </nav>
     <main class="main">
-      <header class="top"><div class="brand">${APP_CONFIG.title}</div><div id="count" class="count">${entries.length} positions</div></header>
+      <header class="top"><div class="brand">All I Say</div><div id="count" class="count">${entries.length} positions</div></header>
       ${homeView(entries)}${writeView()}${driftView()}${betweenView(entries)}
     </main>
   </div>`;
@@ -20,27 +19,27 @@ export function shellView(entries) {
 
 export function homeView(entries) {
   return `<section id="home" class="panel is-active">
-    <div class="hero"><h1 class="hero-title">All<br>I Say</h1><p class="hero-copy">${APP_CONFIG.copy.hero}</p></div>
+    <div class="hero"><h1 class="hero-title">All<br>I Say</h1><p class="hero-copy">An immutable archive of utterances.</p></div>
     <div class="section-head"><div class="eyebrow">The record</div><div class="eyebrow">Newest first</div></div>
     <div id="feed" class="record">${feedView(entries)}</div>
-    <p class="note">${APP_CONFIG.copy.recordNote}</p>
   </section>`;
 }
 
 export function feedView(entries) {
-  return [...entries].reverse().map((entry,index)=>`<article class="entry" data-entry-id="${escapeHTML(entry.id)}">
-    <div class="eyebrow">${escapeHTML(entry.date || 'Undated')}</div>
+  if (!entries.length) return `<p class="note">Nothing yet. Say something.</p>`;
+  return [...entries].reverse().map((entry, index) => `<article class="entry" data-entry-id="${escapeHTML(entry.id)}">
+    <div class="eyebrow">${escapeHTML(entry.displayDate || entry.date || 'Undated')}</div>
     <blockquote class="entry-quote">${escapeHTML(entry.text)}</blockquote>
-    <div class="meta">${meta(entry)}<span class="tag">Position ${entries.length-index}</span></div>
+    <div class="meta">${meta(entry)}<span class="tag">Position ${entries.length - index}</span></div>
   </article>`).join('');
 }
 
 export function writeView() {
   return `<section id="write" class="panel"><div class="compose-wrap">
     <div class="eyebrow">Say</div>
-    <h2 class="big-title">${APP_CONFIG.copy.writePrompt.replace('\n','<br>')}</h2>
+    <h2 class="big-title">What are you thinking?</h2>
     <textarea id="entryText" class="compose-text" placeholder="No title required." aria-label="Your words"></textarea>
-    <div class="compose-foot"><span class="small">${APP_CONFIG.copy.writeHint}</span><button id="saveEntry" class="button-primary">Keep</button></div>
+    <div class="compose-foot"><span class="small">The words you keep.</span><button id="saveEntry" class="button-primary">Keep</button></div>
   </div></section>`;
 }
 
@@ -58,11 +57,15 @@ export function betweenView(entries) {
   </section>`;
 }
 
-export function optionView(entries, selected=0) {
-  return entries.map((e,i)=>`<option value="${i}" ${i===selected?'selected':''}>${escapeHTML(e.text.slice(0,88))}</option>`).join('');
+export function optionView(entries, selected = 0) {
+  return entries.map((e, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${escapeHTML(e.text.slice(0, 88))}</option>`).join('');
 }
 
-export function bridgeView(a,b) {
-  const position = e => `<div class="position"><div class="eyebrow">${escapeHTML(e.date||'Undated')} · ${escapeHTML((e.threads||['Unplaced']).join(' · '))}</div><blockquote class="position-quote">${escapeHTML(e.text)}</blockquote></div>`;
+export function bridgeView(a, b) {
+  const position = e => `<div class="position"><div class="eyebrow">${escapeHTML(e.displayDate || e.date || 'Undated')} · ${escapeHTML((e.metadata?.threads || e.threads || ['Unplaced']).join(' · '))}</div><blockquote class="position-quote">${escapeHTML(e.text)}</blockquote></div>`;
   return `${position(a)}<div class="between-line"><span>Between</span></div>${position(b)}`;
+}
+
+export function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }

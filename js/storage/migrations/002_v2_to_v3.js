@@ -8,7 +8,7 @@ export function parseLegacyDate(value){
  const year=Number(y[1]),m=display.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:uary|ruary|ch|il|e|y|ust|tember|ober|ember)?\b/i);
  if(!m)return {earliest:`${year}-01-01`,latest:`${year}-12-31`,precision:'year',display};
  const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12},month=months[m[1].slice(0,3).toLowerCase()],mm=String(month).padStart(2,'0');
- const day=display.match(/\b([12]?\d|3[01])(?:st|nd|rd|th)?\b/);
+ const withoutYear=display.replace(/\b\d{4}\b/g,''); const day=withoutYear.match(/\b([12]?\d|3[01])(?:st|nd|rd|th)?\b/);
  if(day){const dd=String(Number(day[1])).padStart(2,'0'),d=`${year}-${mm}-${dd}`;return {earliest:d,latest:d,precision:'day',display};}
  const last=String(new Date(year,month,0).getDate()).padStart(2,'0');return {earliest:`${year}-${mm}-01`,latest:`${year}-${mm}-${last}`,precision:'month',display};
 }

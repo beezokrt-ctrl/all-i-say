@@ -65,3 +65,9 @@ test('Between service is available without adding an inferred relation', async()
  const { getBetweenData } = await import('../js/services/between.js');
  assert.equal(typeof getBetweenData,'function');
 });
+
+test('primary shell exposes every archive motion', async()=>{
+ const { shellView } = await import('../js/views.js');
+ const html=shellView([]);
+ for(const route of ['home','write','drift','between','library','search','places']) assert.match(html,new RegExp('data-route="'+route+'"'));
+});

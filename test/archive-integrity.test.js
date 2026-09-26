@@ -47,3 +47,11 @@ test('artifact transcription does not become utterance text implicitly',()=>{
  assert.equal(u.text,null);
  assert.deepEqual(u.source.artifactIds,['art-1']);
 });
+
+test('month labels do not mistake digits from the year for a day',()=>{
+ assert.deepEqual(parseLegacyDate('September 2026'),{earliest:'2026-09-01',latest:'2026-09-30',precision:'month',display:'September 2026'});
+});
+
+test('explicit legacy day remains day precision',()=>{
+ assert.deepEqual(parseLegacyDate('Sep 14 2026'),{earliest:'2026-09-14',latest:'2026-09-14',precision:'day',display:'Sep 14 2026'});
+});

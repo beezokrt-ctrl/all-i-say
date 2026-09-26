@@ -5,6 +5,7 @@ import { createTranscription } from '../domain/transcription.js';
 import { createRelation } from '../domain/relation.js';
 import { createConstellation, createMembership } from '../domain/constellation.js';
 import { validateUtterance, validateTranscription, validateRelation, validateMembership, SCHEMA_VERSION } from '../../data/schema.js';
+import { recordsEquivalent } from './conflict.js';
 
 const DB_VERSION=5, UTTERANCES='utterances', ARTIFACTS='artifacts', TRANSCRIPTIONS='transcriptions', RELATIONS='relations', CONSTELLATIONS='constellations', MEMBERSHIPS='memberships', META='meta';
 const clone=v=>v===undefined?undefined:structuredClone(v);
@@ -48,9 +49,6 @@ r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('Unable to open
    ['constellations',CONSTELLATIONS,payload.constellations,x=>x],
    ['memberships',MEMBERSHIPS,payload.memberships,x=>x]
   ];
-  const stable=value=>{if(value instanceof Blob)return {type:value.type,size:value.size};if(Array.isArray(value))return value.map(stable);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,stable(value[k])]));return value;};
-  const sameBlob=async(a,b)=>{if(!(a instanceof Blob)||!(b instanceof Blob)||a.type!==b.type||a.size!==b.size)return false;const [aa,bb]=await Promise.all([a.arrayBuffer(),b.arrayBuffer()]);const av=new Uint8Array(aa),bv=new Uint8Array(bb);for(let i=0;i<av.length;i++)if(av[i]!==bv[i])return false;return true;};
-  const same=async(a,b)=>{if(a?.blob||b?.blob){const {blob:ab,...am}=a||{}, {blob:bb,...bm}=b||{};return JSON.stringify(stable(am))===JSON.stringify(stable(bm))&&await sameBlob(ab,bb);}return JSON.stringify(stable(a))===JSON.stringify(stable(b));};
   const plans={},skipped={};
   for(const [label,storeName,items,materialize] of specs){
    plans[label]=[];skipped[label]=0;
@@ -58,7 +56,7 @@ r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('Unable to open
     const value=materialize(item),id=value.id,existingValue=await result(db.transaction(storeName).objectStore(storeName).get(id));
     if(!existingValue){plans[label].push(value);continue;}
     if(conflict==='error')throw new Error(`Import conflict: ${label.slice(0,-1)} ${id}`);
-    if(!await same(existingValue,value))throw new Error(`Import conflict differs: ${label.slice(0,-1)} ${id}`);
+    if(!await recordsEquivalent(existingValue,value))throw new Error(`Import conflict differs: ${label.slice(0,-1)} ${id}`);
     skipped[label]++;
    }
   }

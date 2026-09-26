@@ -46,9 +46,9 @@ async function knownReferences(repository,payload){
  for(const m of payload.memberships||[]){utteranceRefs.add(m.utteranceId);constellationRefs.add(m.constellationId);}
  const resolve=async(ids,incoming,getter)=>{const found=[];for(const id of ids){if(incoming.has(id))continue;const value=await getter(id);if(value)found.push(id);}return found;};
  const [knownUtteranceIds,knownArtifactIds,knownConstellationIds]=await Promise.all([
-  resolve(utteranceRefs,incomingUtterances,id=>repository.getUtterance(id)),
-  resolve(artifactRefs,incomingArtifacts,id=>repository.getArtifact(id)),
-  resolve(constellationRefs,incomingConstellations,id=>repository.getConstellation(id))
+  resolve(utteranceRefs,incomingUtterances,id=>typeof repository.getUtterance==='function'?repository.getUtterance(id):null),
+  resolve(artifactRefs,incomingArtifacts,id=>typeof repository.getArtifact==='function'?repository.getArtifact(id):null),
+  resolve(constellationRefs,incomingConstellations,id=>typeof repository.getConstellation==='function'?repository.getConstellation(id):null)
  ]);
  return {knownUtteranceIds,knownArtifactIds,knownConstellationIds};
 }

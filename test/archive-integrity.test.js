@@ -524,3 +524,29 @@ test('create-from-this is atomic when the target utterance does not exist', asyn
  assert.deepEqual(await repository.listConstellations({status:undefined}),[]);
  assert.deepEqual(await repository.listMemberships({status:undefined}),[]);
 });
+
+
+test('Search sees constellation names and aliases without turning them into utterance text', async()=>{
+ const { searchConstellations } = await import('../js/services/search.js');
+ const constellations=[
+  {id:'con-search-a',name:'Darśana',aliases:['Clear Sight'],description:'seeing',createdAt:'2026-01-01T00:00:00.000Z'},
+  {id:'con-search-b',name:'Undir Sólu',aliases:['Under the Sun'],description:'consequence',createdAt:'2026-02-01T00:00:00.000Z'}
+ ];
+ const archive={async listConstellations(){return constellations;}};
+ assert.deepEqual((await searchConstellations('clear',{archive})).map(x=>x.id),['con-search-a']);
+ assert.deepEqual((await searchConstellations('under the sun',{archive})).map(x=>x.id),['con-search-b']);
+ assert.deepEqual((await searchConstellations('consequence',{archive})).map(x=>x.id),['con-search-b']);
+});
+
+test('Search renders first-class constellation results as Places, not word matches', async()=>{
+ const { AllISayApp } = await import('../js/app.js');
+ const app=new AllISayApp({addEventListener(){}});
+ const html=app.searchMarkup({
+  utterances:[],
+  constellations:[{id:'con-search-view',name:'A Place'}]
+ },'place');
+ assert.match(html,/data-search-constellation="con-search-view"/);
+ assert.match(html,/Constellation/);
+ assert.match(html,/A Place/);
+ assert.doesNotMatch(html,/data-entry-id="con-search-view"/);
+});

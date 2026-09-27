@@ -153,3 +153,10 @@
   .search-form .button-primary{align-self:auto}
   .mobile-nav,.mobile-more-menu{display:none!important}
 }
+
+
+.search-places{margin:28px 0 34px}
+.search-place{display:flex;width:100%;align-items:baseline;justify-content:space-between;gap:18px;padding:16px 0;border:0;border-bottom:1px solid var(--color-line);background:transparent;color:var(--color-text);text-align:left}
+.search-place:first-of-type{border-top:1px solid var(--color-line);margin-top:10px}
+.search-place-name{font:300 25px/1.2 var(--font-display)}
+.search-place:hover .search-place-name,.search-place:focus-visible .search-place-name{text-decoration:underline;text-underline-offset:5px}

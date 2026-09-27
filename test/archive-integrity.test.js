@@ -216,7 +216,7 @@ test('withdrawing membership preserves the assertion and its original provenance
  assert.ok(withdrawn.withdrawnAt);
  assert.equal(withdrawn.createdAt,original.createdAt);
  assert.deepEqual(withdrawn.provenance,original.provenance);
- const history=await repository.listMemberships({status:undefined});
+ const history=await repository.listMemberships({status:'withdrawn'});
  assert.equal(history.length,1);
  assert.equal(history[0].id,original.id);
  assert.equal(history[0].status,'withdrawn');

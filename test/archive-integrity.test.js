@@ -85,7 +85,7 @@ test('constellation membership is an assertion, not ownership', async()=>{
 test('import rejects membership whose constellation is absent', async()=>{
  const { createMembership } = await import('../js/domain/constellation.js');
  const u=createUtterance({id:'u-member',text:'words'});
- const membership=createMembership({id:'m-broken',constellationId:'missing',utteranceId:u.id});
+ const membership=createMembership({id:'m-broken',constellationId:'missing',utteranceId:u.id,provenance:{origin:'author'}});
  const payload={exportFormatVersion:3,utterances:[u],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]};
  assert.throws(()=>validateImportPayload(payload),/missing constellation/);
 });
@@ -99,7 +99,7 @@ test('v2 exports remain importable with an empty constellation graph',()=>{
 
 test('import may attach a new membership to archive entities already present', async()=>{
  const { createMembership } = await import('../js/domain/constellation.js');
- const membership=createMembership({id:'m-existing',constellationId:'con-existing',utteranceId:'u-existing'});
+ const membership=createMembership({id:'m-existing',constellationId:'con-existing',utteranceId:'u-existing',provenance:{origin:'author'}});
  const repository={
   getUtterance:async id=>id==='u-existing'?{id}:undefined,
   getConstellation:async id=>id==='con-existing'?{id}:undefined,
@@ -134,4 +134,28 @@ test('constellation view gathers a position without claiming ownership', async()
  assert.match(html,/data-constellation-id="con-one"/);
  assert.match(html,/without owning them/);
  assert.match(html,/does not say they belong only here/);
+});
+
+
+test('constellation assertions require explicit provenance', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ assert.throws(()=>createConstellation({name:'Unnamed source'}),/provenance.origin is required/);
+ assert.throws(()=>createMembership({constellationId:'con',utteranceId:'utt'}),/provenance.origin is required/);
+});
+
+test('constellation status and aliases are closed validated fields', async()=>{
+ const { createConstellation } = await import('../js/domain/constellation.js');
+ assert.throws(()=>createConstellation({name:'A',status:'primary',provenance:{origin:'author'}}),/status is invalid/);
+ assert.throws(()=>createConstellation({name:'A',aliases:'not an array',provenance:{origin:'author'}}),/aliases/);
+});
+
+test('membership withdrawal state cannot contradict its timestamp', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const base={constellationId:'con',utteranceId:'utt',provenance:{origin:'author'}};
+ assert.throws(()=>createMembership({...base,status:'withdrawn'}),/withdrawnAt/);
+ assert.throws(()=>createMembership({...base,status:'active',withdrawnAt:'2026-09-26T00:00:00.000Z'}),/active membership/);
+ const withdrawn=createMembership({...base,status:'withdrawn',withdrawnAt:'2026-09-26T00:00:00.000Z'});
+ assert.equal(withdrawn.status,'withdrawn');
+ assert.equal(withdrawn.withdrawnAt,'2026-09-26T00:00:00.000Z');
+ assert.equal('deletedAt' in withdrawn,false);
 });

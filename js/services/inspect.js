@@ -9,7 +9,7 @@ export async function getUtteranceInspection(id) {
   const [artifacts, transcriptionGroups, relations, gatheringState] = await Promise.all([
     Promise.all(artifactIds.map(artifactId => archive.getArtifact(artifactId))),
     Promise.all(artifactIds.map(artifactId => archive.listTranscriptions({ artifactId }))),
-    archive.listRelations({ utteranceId: id }),
+    archive.listRelations({ utteranceId: id, status: undefined }),
     getUtteranceGatheringState(id, { archive })
   ]);
   return {

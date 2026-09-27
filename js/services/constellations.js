@@ -12,7 +12,7 @@ export async function getConstellationPlaces(){
   const memberIds=memberships.filter(m=>m.constellationId===constellation.id).map(m=>m.utteranceId);
   const gathered=memberIds.map(id=>byId.get(id)).filter(Boolean);
   return {constellation,count:gathered.length,utterances:gathered};
- }).sort((a,b)=>b.count-a.count||a.constellation.name.localeCompare(b.constellation.name));
+ }).sort((a,b)=>a.constellation.createdAt.localeCompare(b.constellation.createdAt)||a.constellation.name.localeCompare(b.constellation.name));
 }
 
 export async function getLegacyThreadGatherings(){
@@ -24,5 +24,5 @@ export async function getLegacyThreadGatherings(){
   if(!groups.has(name))groups.set(name,[]);
   groups.get(name).push(utterance);
  }
- return [...groups].map(([name,items])=>({name,count:items.length,utterances:items})).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name));
+ return [...groups].map(([name,items])=>({name,count:items.length,utterances:items})).sort((a,b)=>a.name.localeCompare(b.name));
 }

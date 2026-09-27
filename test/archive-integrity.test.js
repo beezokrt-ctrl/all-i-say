@@ -174,3 +174,116 @@ test('conflict equality distinguishes explicit null from an absent field', async
  const { recordsEquivalent } = await import('../js/storage/conflict.js');
  assert.equal(await recordsEquivalent({id:'u1',note:null},{id:'u1'}),false);
 });
+
+
+test('repository membership creation enforces references and active-pair uniqueness', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'membership-integrity',indexedDB:new IDBFactory()});
+ await assert.rejects(
+  ()=>repository.createMembership({constellationId:'missing',utteranceId:'missing',provenance:{origin:'author'}}),
+  /Unknown constellation/
+ );
+ const utterance=await repository.createUtterance({id:'u-membership',text:'words'});
+ await assert.rejects(
+  ()=>repository.createMembership({constellationId:'missing',utteranceId:utterance.id,provenance:{origin:'author'}}),
+  /Unknown constellation/
+ );
+ const constellation=await repository.createConstellation({id:'con-membership',name:'A gathering',provenance:{origin:'author'}});
+ const first=await repository.createMembership({id:'mem-first',constellationId:constellation.id,utteranceId:utterance.id,provenance:{origin:'author'}});
+ assert.equal(first.status,'active');
+ await assert.rejects(
+  ()=>repository.createMembership({id:'mem-second',constellationId:constellation.id,utteranceId:utterance.id,provenance:{origin:'author'}}),
+  /Active membership already exists/
+ );
+});
+
+test('withdrawing membership preserves the assertion and its original provenance', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'membership-withdrawal',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-withdraw',text:'words'});
+ const constellation=await repository.createConstellation({id:'con-withdraw',name:'A gathering',provenance:{origin:'author'}});
+ const original=await repository.createMembership({
+  id:'mem-withdraw',
+  constellationId:constellation.id,
+  utteranceId:utterance.id,
+  createdAt:'2026-09-26T12:00:00.000Z',
+  provenance:{origin:'author',createdAt:'2026-09-26T12:00:00.000Z'}
+ });
+ const withdrawn=await repository.withdrawMembership(original.id,'changed sight');
+ assert.equal(withdrawn.status,'withdrawn');
+ assert.ok(withdrawn.withdrawnAt);
+ assert.equal(withdrawn.createdAt,original.createdAt);
+ assert.deepEqual(withdrawn.provenance,original.provenance);
+ const history=await repository.listMemberships({status:undefined});
+ assert.equal(history.length,1);
+ assert.equal(history[0].id,original.id);
+ assert.equal(history[0].status,'withdrawn');
+});
+
+test('dangling membership import aborts the whole repository transaction', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const repository=new IndexedDBArchiveRepository({name:'dangling-import',indexedDB:new IDBFactory()});
+ const utterance=createUtterance({id:'u-should-not-land',text:'must remain outside'});
+ const membership=createMembership({
+  id:'mem-dangling',
+  constellationId:'con-missing',
+  utteranceId:utterance.id,
+  provenance:{origin:'author'}
+ });
+ await assert.rejects(
+  ()=>repository.importAll({
+   utterances:[utterance],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]
+  }),
+  /missing constellation/
+ );
+ assert.equal(await repository.getUtterance(utterance.id),undefined);
+ assert.deepEqual(await repository.listMemberships({status:undefined}),[]);
+});
+
+test('racing membership writes cannot create two active assertions for one pair', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const repository=new IndexedDBArchiveRepository({name:'membership-race',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-race',text:'one position'});
+ const constellation=await repository.createConstellation({id:'con-race',name:'One gathering',provenance:{origin:'author'}});
+ const direct=repository.createMembership({
+  id:'mem-race-direct',constellationId:constellation.id,utteranceId:utterance.id,provenance:{origin:'author'}
+ });
+ const imported=createMembership({
+  id:'mem-race-import',constellationId:constellation.id,utteranceId:utterance.id,provenance:{origin:'author'}
+ });
+ const importing=repository.importAll({
+  utterances:[],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[imported]
+ });
+ const settled=await Promise.allSettled([direct,importing]);
+ assert.equal(settled.filter(x=>x.status==='fulfilled').length,1);
+ assert.equal(settled.filter(x=>x.status==='rejected').length,1);
+ const active=await repository.listMemberships({constellationId:constellation.id,status:'active'});
+ assert.equal(active.length,1);
+ assert.equal(active[0].utteranceId,utterance.id);
+});
+
+test('atomic skip compares artifact bytes without losing the IndexedDB transaction', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'artifact-skip',indexedDB:new IDBFactory()});
+ await repository.createArtifact(new Blob(['abc'],{type:'text/plain'}),{
+  id:'art-same',kind:'file',mimeType:'text/plain'
+ });
+ const stored=await repository.getArtifact('art-same');
+ const {blob:storedBlob,...meta}=stored;
+ const result=await repository.importAll({
+  utterances:[],
+  artifacts:[{meta,blob:new Blob(['abc'],{type:'text/plain'})}],
+  transcriptions:[],relations:[],constellations:[],memberships:[]
+ },{conflict:'skip'});
+ assert.equal(result.skipped.artifacts,1);
+ assert.equal(result.counts.artifacts,0);
+ const after=await repository.getArtifact('art-same');
+ assert.equal(await after.blob.text(),'abc');
+});

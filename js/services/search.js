@@ -5,3 +5,23 @@ export async function searchArchive(query,{form,thread,status='kept'}={}){
  const archive=await getArchive(),items=await archive.listUtterances({form,thread,status,limit:Infinity});
  return items.map(item=>{const text=normalize(item.text),threads=(item.metadata?.threads||[]).map(normalize),formText=normalize(item.metadata?.form);let score=0;if(text===q)score+=100;if(text.includes(q))score+=40;if(text.startsWith(q))score+=20;if(threads.some(t=>t.includes(q)))score+=15;if(formText.includes(q))score+=5;return {item,score};}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||b.item.createdAt.localeCompare(a.item.createdAt)).map(x=>x.item);
 }
+
+
+export async function searchConstellations(query,{archive}={}){
+ const q=normalize(query).trim(); if(!q)return [];
+ const repository=archive||await getArchive();
+ const items=await repository.listConstellations({status:'active'});
+ return items.map(item=>{
+  const name=normalize(item.name),aliases=(item.aliases||[]).map(normalize),description=normalize(item.description);
+  let score=0;
+  if(name===q)score+=100;
+  if(name.includes(q))score+=40;
+  if(name.startsWith(q))score+=20;
+  if(aliases.some(alias=>alias===q))score+=60;
+  if(aliases.some(alias=>alias.includes(q)))score+=25;
+  if(description.includes(q))score+=5;
+  return {item,score};
+ }).filter(result=>result.score>0)
+   .sort((a,b)=>b.score-a.score||a.item.createdAt.localeCompare(b.item.createdAt))
+   .map(result=>result.item);
+}

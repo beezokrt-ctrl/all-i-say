@@ -433,3 +433,80 @@ test('authoring provenance does not invent an actor identity', async()=>{
  assert.equal('actorId' in created.constellation.provenance,false);
  assert.equal('actorId' in created.membership.provenance,false);
 });
+
+
+test('Inspect UI events place, withdraw, and create-from-this through the bound app shell', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ globalThis.indexedDB=new IDBFactory();
+
+ const previousDocument=globalThis.document;
+ const previousWindow=globalThis.window;
+ const fields=new Map();
+ globalThis.document={
+  readyState:'complete',
+  querySelector(selector){ return fields.get(selector)||null; },
+  querySelectorAll(){ return []; },
+  addEventListener(){}
+ };
+ globalThis.window={scrollY:0,scrollTo(){}};
+
+ try{
+  const { AllISayApp } = await import('../js/app.js');
+  const { getArchive } = await import('../js/services/archive.js');
+  const archive=await getArchive();
+  const utterance=await archive.createUtterance({id:'u-ui-gathering',text:'words through the interface'});
+  const existing=await archive.createConstellation({id:'con-ui-existing',name:'Existing place',provenance:{origin:'author'}});
+
+  class InteractionRoot {
+   constructor(){ this.listeners=new Map(); }
+   addEventListener(type,handler){
+    if(!this.listeners.has(type))this.listeners.set(type,[]);
+    this.listeners.get(type).push(handler);
+   }
+   async dispatch(type,target){
+    const event={target,preventDefault(){this.defaultPrevented=true;},key:null};
+    for(const handler of this.listeners.get(type)||[])await handler(event);
+    return event;
+   }
+  }
+  const target=(kind,dataset={})=>({
+   id:'',
+   dataset,
+   closest(selector){
+    if(kind==='gather'&&selector==='[data-gather-constellation]')return this;
+    if(kind==='withdraw'&&selector==='[data-withdraw-membership]')return this;
+    return null;
+   }
+  });
+
+  const root=new InteractionRoot();
+  const app=new AllISayApp(root);
+  app.inspectId=utterance.id;
+  app.refreshInspect=async()=>{};
+  app.bind();
+
+  await root.dispatch('click',target('gather',{gatherConstellation:existing.id}));
+  let active=await archive.listMemberships({utteranceId:utterance.id,status:'active'});
+  assert.equal(active.length,1);
+  assert.equal(active[0].constellationId,existing.id);
+
+  await root.dispatch('click',target('withdraw',{withdrawMembership:active[0].id}));
+  active=await archive.listMemberships({utteranceId:utterance.id,status:'active'});
+  const withdrawn=await archive.listMemberships({utteranceId:utterance.id,status:'withdrawn'});
+  assert.equal(active.length,0);
+  assert.equal(withdrawn.length,1);
+
+  fields.set('#newConstellationName',{value:'From the interface'});
+  await root.dispatch('submit',{id:'newConstellationForm',closest(){return null;}});
+  const constellations=await archive.listConstellations({status:'active'});
+  const created=constellations.find(item=>item.name==='From the interface');
+  assert.ok(created);
+  active=await archive.listMemberships({utteranceId:utterance.id,status:'active'});
+  assert.equal(active.length,1);
+  assert.equal(active[0].constellationId,created.id);
+  assert.equal(active[0].provenance.origin,'author');
+ } finally {
+  if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
+  if(previousWindow===undefined)delete globalThis.window; else globalThis.window=previousWindow;
+ }
+});

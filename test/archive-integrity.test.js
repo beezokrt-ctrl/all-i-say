@@ -71,3 +71,106 @@ test('primary shell exposes every archive motion', async()=>{
  const html=shellView([]);
  for(const route of ['home','write','drift','between','library','search','places']) assert.match(html,new RegExp('data-route="'+route+'"'));
 });
+
+test('constellation membership is an assertion, not ownership', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ const constellation=createConstellation({id:'con_test',name:'A place',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ const first=createMembership({id:'mem_one',constellationId:constellation.id,utteranceId:'utt_same',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ const second=createMembership({id:'mem_two',constellationId:'con_other',utteranceId:'utt_same',createdAt:'2026-09-26T00:00:00.000Z',provenance:{origin:'author',createdAt:'2026-09-26T00:00:00.000Z'}});
+ assert.equal(first.utteranceId,second.utteranceId);
+ assert.notEqual(first.constellationId,second.constellationId);
+ assert.equal(first.status,'active');
+});
+
+test('import rejects membership whose constellation is absent', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const u=createUtterance({id:'u-member',text:'words'});
+ const membership=createMembership({id:'m-broken',constellationId:'missing',utteranceId:u.id,provenance:{origin:'author'}});
+ const payload={exportFormatVersion:3,utterances:[u],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]};
+ assert.throws(()=>validateImportPayload(payload),/missing constellation/);
+});
+
+test('v2 exports remain importable with an empty constellation graph',()=>{
+ const u=createUtterance({id:'u-old-export',text:'older words'});
+ const result=validateImportPayload({exportFormatVersion:2,utterances:[u],artifacts:[],transcriptions:[],relations:[]});
+ assert.deepEqual(result.constellations,[]);
+ assert.deepEqual(result.memberships,[]);
+});
+
+test('import may attach a new membership to archive entities already present', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const membership=createMembership({id:'m-existing',constellationId:'con-existing',utteranceId:'u-existing',provenance:{origin:'author'}});
+ const repository={
+  getUtterance:async id=>id==='u-existing'?{id}:undefined,
+  getConstellation:async id=>id==='con-existing'?{id}:undefined,
+  importAll(){throw new Error('dry run must not write');}
+ };
+ const payload={exportFormatVersion:3,utterances:[],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[membership]};
+ const result=await importAll(repository,payload,{dryRun:true});
+ assert.equal(result.success,true);
+ assert.equal(result.counts.memberships,1);
+});
+
+test('skip-equivalence distinguishes identical records from divergent words and bytes', async()=>{
+ const { recordsEquivalent } = await import('../js/storage/conflict.js');
+ assert.equal(await recordsEquivalent({id:'u1',text:'same',metadata:{b:2,a:1}},{metadata:{a:1,b:2},text:'same',id:'u1'}),true);
+ assert.equal(await recordsEquivalent({id:'u1',text:'first light'},{id:'u1',text:'changed'}),false);
+ assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abc'],{type:'text/plain'})}),true);
+ assert.equal(await recordsEquivalent({id:'a1',blob:new Blob(['abc'],{type:'text/plain'})},{id:'a1',blob:new Blob(['abd'],{type:'text/plain'})}),false);
+});
+
+
+test('Places keeps legacy thread labels visibly noncanonical', async()=>{
+ const { placesView } = await import('../js/views/places.js');
+ const html=placesView([],[{name:'Undir Sólu',count:1,utterances:[]}]);
+ assert.match(html,/Earlier thread labels/);
+ assert.match(html,/Not constellations until you say so/);
+ assert.doesNotMatch(html,/data-constellation-id="Undir Sólu"/);
+});
+
+test('constellation view gathers a position without claiming ownership', async()=>{
+ const { placesView } = await import('../js/views/places.js');
+ const html=placesView([{constellation:{id:'con-one',name:'Undir Sólu',aliases:[],description:null},count:1,utterances:[]}],[]);
+ assert.match(html,/data-constellation-id="con-one"/);
+ assert.match(html,/without owning them/);
+ assert.match(html,/does not say they belong only here/);
+});
+
+
+test('constellation assertions require explicit provenance', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ assert.throws(()=>createConstellation({name:'Unnamed source'}),/provenance.origin is required/);
+ assert.throws(()=>createMembership({constellationId:'con',utteranceId:'utt'}),/provenance.origin is required/);
+});
+
+test('constellation status and aliases are closed validated fields', async()=>{
+ const { createConstellation } = await import('../js/domain/constellation.js');
+ assert.throws(()=>createConstellation({name:'A',status:'primary',provenance:{origin:'author'}}),/status is invalid/);
+ assert.throws(()=>createConstellation({name:'A',aliases:'not an array',provenance:{origin:'author'}}),/aliases/);
+});
+
+test('membership withdrawal state cannot contradict its timestamp', async()=>{
+ const { createMembership } = await import('../js/domain/constellation.js');
+ const base={constellationId:'con',utteranceId:'utt',provenance:{origin:'author'}};
+ assert.throws(()=>createMembership({...base,status:'withdrawn'}),/withdrawnAt/);
+ assert.throws(()=>createMembership({...base,status:'active',withdrawnAt:'2026-09-26T00:00:00.000Z'}),/active membership/);
+ const withdrawn=createMembership({...base,status:'withdrawn',withdrawnAt:'2026-09-26T00:00:00.000Z'});
+ assert.equal(withdrawn.status,'withdrawn');
+ assert.equal(withdrawn.withdrawnAt,'2026-09-26T00:00:00.000Z');
+ assert.equal('deletedAt' in withdrawn,false);
+});
+
+
+test('import rejects two active assertions for the same constellation and utterance', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ const u=createUtterance({id:'u-pair',text:'same position'});
+ const constellation=createConstellation({id:'con-pair',name:'A gathering',provenance:{origin:'author'}});
+ const first=createMembership({id:'m-pair-1',constellationId:constellation.id,utteranceId:u.id,provenance:{origin:'author'}});
+ const second=createMembership({id:'m-pair-2',constellationId:constellation.id,utteranceId:u.id,provenance:{origin:'author'}});
+ assert.throws(()=>validateImportPayload({exportFormatVersion:3,utterances:[u],artifacts:[],transcriptions:[],relations:[],constellations:[constellation],memberships:[first,second]}),/Duplicate active membership/);
+});
+
+test('conflict equality distinguishes explicit null from an absent field', async()=>{
+ const { recordsEquivalent } = await import('../js/storage/conflict.js');
+ assert.equal(await recordsEquivalent({id:'u1',note:null},{id:'u1'}),false);
+});

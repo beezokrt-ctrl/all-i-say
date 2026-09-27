@@ -49,6 +49,9 @@ export class ArchiveRepository {
   async createConstellation(_data) {
     throw new Error('Not implemented: createConstellation');
   }
+  async createConstellationWithMembership(_constellationData, _membershipData) {
+    throw new Error('Not implemented: createConstellationWithMembership');
+  }
   async getConstellation(_id) {
     throw new Error('Not implemented: getConstellation');
   }

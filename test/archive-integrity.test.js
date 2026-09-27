@@ -578,3 +578,32 @@ test('Search constellation result opens its first-class Place through bound UI e
  await root.dispatch('click',target);
  assert.equal(opened,'con-search-click');
 });
+
+
+test('derived archive records never silently claim author provenance', async()=>{
+ const { createAnnotation } = await import('../js/domain/annotation.js');
+ const { createInterpretation } = await import('../js/domain/interpretation.js');
+ assert.throws(()=>createAnnotation({targetId:'u-derived',text:'a note'}),/provenance.origin is required/);
+ assert.throws(()=>createInterpretation({targetId:'u-derived',reading:'a reading'}),/provenance.origin is required/);
+ const annotation=createAnnotation({targetId:'u-derived',text:'a note',provenance:{origin:'author'}});
+ const interpretation=createInterpretation({targetId:'u-derived',reading:'a reading',provenance:{origin:'author'}});
+ assert.equal(annotation.provenance.origin,'author');
+ assert.equal(interpretation.provenance.origin,'author');
+});
+
+test('Suggestions require explicit provenance and AI provenance names its model', async()=>{
+ const { createSuggestion } = await import('../js/domain/suggestion.js');
+ assert.throws(()=>createSuggestion({kind:'relation',payload:{}}),/provenance.origin is required/);
+ assert.throws(
+  ()=>createSuggestion({kind:'relation',payload:{},provenance:{origin:'ai'}}),
+  /provenance.model/
+ );
+ const suggestion=createSuggestion({
+  kind:'relation',
+  payload:{fromId:'u-one',toId:'u-two'},
+  provenance:{origin:'ai',model:'test-model'}
+ });
+ assert.equal(suggestion.status,'pending');
+ assert.equal(suggestion.provenance.origin,'ai');
+ assert.equal(suggestion.provenance.model,'test-model');
+});

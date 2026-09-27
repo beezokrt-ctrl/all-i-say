@@ -550,3 +550,31 @@ test('Search renders first-class constellation results as Places, not word match
  assert.match(html,/A Place/);
  assert.doesNotMatch(html,/data-entry-id="con-search-view"/);
 });
+
+
+test('Search constellation result opens its first-class Place through bound UI events', async()=>{
+ const { AllISayApp } = await import('../js/app.js');
+ class Root {
+  constructor(){this.listeners=new Map();}
+  addEventListener(type,handler){
+   if(!this.listeners.has(type))this.listeners.set(type,[]);
+   this.listeners.get(type).push(handler);
+  }
+  async dispatch(type,target){
+   const event={target,preventDefault(){},key:null};
+   for(const handler of this.listeners.get(type)||[])await handler(event);
+  }
+ }
+ const root=new Root();
+ const app=new AllISayApp(root);
+ let opened=null;
+ app.openSearchConstellation=async id=>{opened=id;};
+ app.bind();
+ const target={
+  id:'',
+  dataset:{searchConstellation:'con-search-click'},
+  closest(selector){return selector==='[data-search-constellation]'?this:null;}
+ };
+ await root.dispatch('click',target);
+ assert.equal(opened,'con-search-click');
+});

@@ -159,3 +159,18 @@ test('membership withdrawal state cannot contradict its timestamp', async()=>{
  assert.equal(withdrawn.withdrawnAt,'2026-09-26T00:00:00.000Z');
  assert.equal('deletedAt' in withdrawn,false);
 });
+
+
+test('import rejects two active assertions for the same constellation and utterance', async()=>{
+ const { createConstellation, createMembership } = await import('../js/domain/constellation.js');
+ const u=createUtterance({id:'u-pair',text:'same position'});
+ const constellation=createConstellation({id:'con-pair',name:'A gathering',provenance:{origin:'author'}});
+ const first=createMembership({id:'m-pair-1',constellationId:constellation.id,utteranceId:u.id,provenance:{origin:'author'}});
+ const second=createMembership({id:'m-pair-2',constellationId:constellation.id,utteranceId:u.id,provenance:{origin:'author'}});
+ assert.throws(()=>validateImportPayload({exportFormatVersion:3,utterances:[u],artifacts:[],transcriptions:[],relations:[],constellations:[constellation],memberships:[first,second]}),/Duplicate active membership/);
+});
+
+test('conflict equality distinguishes explicit null from an absent field', async()=>{
+ const { recordsEquivalent } = await import('../js/storage/conflict.js');
+ assert.equal(await recordsEquivalent({id:'u1',note:null},{id:'u1'}),false);
+});

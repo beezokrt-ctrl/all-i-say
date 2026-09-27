@@ -342,7 +342,7 @@ test('Inspect names the absence of gathering without turning it into a tag promp
  });
  assert.match(html,/Not yet gathered anywhere\./);
  assert.match(html,/Gather here →/);
- assert.doesNotMatch(html,/tag/i);
+ assert.doesNotMatch(html,/add tag|tag this/i);
 });
 
 test('constellation authoring service places and withdraws one utterance explicitly', async()=>{

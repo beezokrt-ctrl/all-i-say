@@ -190,6 +190,10 @@ test('repository membership creation enforces references and active-pair uniquen
   /Unknown constellation/
  );
  const constellation=await repository.createConstellation({id:'con-membership',name:'A gathering',provenance:{origin:'author'}});
+ await assert.rejects(
+  ()=>repository.createMembership({constellationId:constellation.id,utteranceId:'missing',provenance:{origin:'author'}}),
+  /Unknown utterance/
+ );
  const first=await repository.createMembership({id:'mem-first',constellationId:constellation.id,utteranceId:utterance.id,provenance:{origin:'author'}});
  assert.equal(first.status,'active');
  await assert.rejects(
@@ -286,4 +290,25 @@ test('atomic skip compares artifact bytes without losing the IndexedDB transacti
  assert.equal(result.counts.artifacts,0);
  const after=await repository.getArtifact('art-same');
  assert.equal(await after.blob.text(),'abc');
+});
+
+
+test('tombstoning hides the utterance without erasing its active gathering history', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'tombstone-membership',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-tombstone-gathered',text:'still part of the history'});
+ const constellation=await repository.createConstellation({id:'con-tombstone-gathered',name:'A gathering',provenance:{origin:'author'}});
+ await repository.createMembership({
+  id:'mem-tombstone-gathered',
+  constellationId:constellation.id,
+  utteranceId:utterance.id,
+  provenance:{origin:'author'}
+ });
+ await repository.tombstoneUtterance(utterance.id,'author choice');
+ const visible=await repository.listUtterances({status:'kept',limit:Infinity});
+ assert.equal(visible.some(item=>item.id===utterance.id),false);
+ const memberships=await repository.listMemberships({utteranceId:utterance.id,status:'active'});
+ assert.equal(memberships.length,1);
+ assert.equal(memberships[0].id,'mem-tombstone-gathered');
 });

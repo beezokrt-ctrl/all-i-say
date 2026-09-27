@@ -228,6 +228,22 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async createConstellationWithMembership(constellationData,membershipData){
+    const constellation=createConstellation(constellationData);
+    const membership=createMembership({...membershipData,constellationId:constellation.id});
+    const db=await this.open(),tx=db.transaction([CONSTELLATIONS,MEMBERSHIPS,UTTERANCES],'readwrite');
+    const cs=tx.objectStore(CONSTELLATIONS),ms=tx.objectStore(MEMBERSHIPS),us=tx.objectStore(UTTERANCES);
+    try{
+      if(!await result(us.get(membership.utteranceId)))throw new Error(`Unknown utterance: ${membership.utteranceId}`);
+      cs.add(clone(constellation));
+      ms.add(clone(membership));
+    } catch(error){
+      tx.abort();
+      throw error;
+    }
+    await complete(tx);
+    return {constellation:clone(constellation),membership:clone(membership)};
+  }
   async getConstellation(id){
     const db=await this.open();
     return clone(await result(db.transaction(CONSTELLATIONS).objectStore(CONSTELLATIONS).get(id)));

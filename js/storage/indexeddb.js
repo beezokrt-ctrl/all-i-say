@@ -5,7 +5,7 @@ import { createTranscription } from '../domain/transcription.js';
 import { createRelation } from '../domain/relation.js';
 import { createConstellation, createMembership } from '../domain/constellation.js';
 import { validateUtterance, validateTranscription, validateRelation, validateMembership, SCHEMA_VERSION } from '../../data/schema.js';
-import { recordsEquivalent } from './conflict.js';
+import { recordsEquivalent, recordsStructurallyEquivalent } from './conflict.js';
 
 const DB_VERSION=5, UTTERANCES='utterances', ARTIFACTS='artifacts', TRANSCRIPTIONS='transcriptions', RELATIONS='relations', CONSTELLATIONS='constellations', MEMBERSHIPS='memberships', META='meta';
 const clone=v=>v===undefined?undefined:structuredClone(v);
@@ -49,23 +49,68 @@ r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('Unable to open
    ['constellations',CONSTELLATIONS,payload.constellations,x=>x],
    ['memberships',MEMBERSHIPS,payload.memberships,x=>x]
   ];
-  const plans={},skipped={};
-  for(const [label,storeName,items,materialize] of specs){
-   plans[label]=[];skipped[label]=0;
-   for(const item of items){
-    const value=materialize(item),id=value.id,existingValue=await result(db.transaction(storeName).objectStore(storeName).get(id));
-    if(!existingValue){plans[label].push(value);continue;}
-    if(conflict==='error')throw new Error(`Import conflict: ${label.slice(0,-1)} ${id}`);
-    if(!await recordsEquivalent(existingValue,value))throw new Error(`Import conflict differs: ${label.slice(0,-1)} ${id}`);
-    skipped[label]++;
+  // Blob byte equality is asynchronous, so do the expensive equivalence pass before
+  // opening the write transaction. The write transaction re-reads every key and
+  // verifies that the preflight snapshot has not changed before writing anything.
+  const snapshots=Object.fromEntries(specs.map(([label])=>[label,new Map()]));
+  for(const [label,storeName,items,materialize] of specs)for(const item of items){
+   const value=materialize(item),id=value.id;
+   const existingValue=await result(db.transaction(storeName).objectStore(storeName).get(id));
+   if(!existingValue)continue;
+   if(conflict==='error')throw new Error(`Import conflict: ${label.slice(0,-1)} ${id}`);
+   if(!await recordsEquivalent(existingValue,value))throw new Error(`Import conflict differs: ${label.slice(0,-1)} ${id}`);
+   snapshots[label].set(id,existingValue);
+  }
+
+  const names=specs.map(x=>x[1]),tx=db.transaction(names,'readwrite');
+  let logicalError=null;
+  const abort=error=>{if(logicalError)return;logicalError=error;try{tx.abort();}catch{}};
+  const requireExisting=(storeName,id,message)=>{
+   const request=tx.objectStore(storeName).get(id);
+   request.onsuccess=()=>{if(!request.result)abort(new Error(message));};
+  };
+
+  const incomingUtterances=new Set(payload.utterances.map(x=>x.id));
+  const incomingArtifacts=new Set(payload.artifacts.map(x=>x.meta.id));
+  const incomingConstellations=new Set(payload.constellations.map(x=>x.id));
+  for(const transcription of payload.transcriptions){
+   if(!incomingArtifacts.has(transcription.artifactId))requireExisting(ARTIFACTS,transcription.artifactId,`Transcription ${transcription.id} references missing artifact ${transcription.artifactId}`);
+   if(transcription.utteranceId&&!incomingUtterances.has(transcription.utteranceId))requireExisting(UTTERANCES,transcription.utteranceId,`Transcription ${transcription.id} references missing utterance ${transcription.utteranceId}`);
+  }
+  for(const relation of payload.relations){
+   if(!incomingUtterances.has(relation.fromId))requireExisting(UTTERANCES,relation.fromId,`Relation ${relation.id} references missing utterance ${relation.fromId}`);
+   if(!incomingUtterances.has(relation.toId))requireExisting(UTTERANCES,relation.toId,`Relation ${relation.id} references missing utterance ${relation.toId}`);
+  }
+  for(const utterance of payload.utterances)for(const artifactId of utterance.source?.artifactIds||[])if(!incomingArtifacts.has(artifactId))requireExisting(ARTIFACTS,artifactId,`Utterance ${utterance.id} references missing artifact ${artifactId}`);
+  for(const membership of payload.memberships){
+   if(!incomingConstellations.has(membership.constellationId))requireExisting(CONSTELLATIONS,membership.constellationId,`Membership ${membership.id} references missing constellation ${membership.constellationId}`);
+   if(!incomingUtterances.has(membership.utteranceId))requireExisting(UTTERANCES,membership.utteranceId,`Membership ${membership.id} references missing utterance ${membership.utteranceId}`);
+   if(membership.status==='active'){
+    const request=tx.objectStore(MEMBERSHIPS).index('constellationId').getAll(membership.constellationId);
+    request.onsuccess=()=>{
+     if(request.result.some(existing=>existing.id!==membership.id&&existing.utteranceId===membership.utteranceId&&existing.status==='active'))abort(new Error(`Active membership already exists for ${membership.constellationId} / ${membership.utteranceId}`));
+    };
    }
   }
-  const names=specs.map(x=>x[1]),tx=db.transaction(names,'readwrite');
-  try{
-   for(const [label,storeName] of specs)for(const value of plans[label])tx.objectStore(storeName).add(clone(value));
-  }catch(error){tx.abort();throw error;}
-  await complete(tx);
-  return {success:true,dryRun:false,counts:Object.fromEntries(specs.map(([label])=>[label,plans[label].length])),skipped,conflict};
+
+  for(const [label,storeName,items,materialize] of specs)for(const item of items){
+   const value=materialize(item),id=value.id,request=tx.objectStore(storeName).get(id),snapshot=snapshots[label].get(id);
+   request.onsuccess=()=>{
+    if(logicalError)return;
+    const current=request.result;
+    if(snapshot){
+     if(!current||!recordsStructurallyEquivalent(current,snapshot))abort(new Error(`Import target changed during import: ${label.slice(0,-1)} ${id}`));
+     return;
+    }
+    if(current){abort(new Error(`Import target changed during import: ${label.slice(0,-1)} ${id}`));return;}
+    tx.objectStore(storeName).add(clone(value));
+   };
+  }
+
+  try{await complete(tx);}catch(error){throw logicalError||error;}
+  const skipped=Object.fromEntries(specs.map(([label])=>[label,snapshots[label].size]));
+  const counts=Object.fromEntries(specs.map(([label,,items])=>[label,items.length-skipped[label]]));
+  return {success:true,dryRun:false,counts,skipped,conflict};
  }
  async getSchemaVersion(){return SCHEMA_VERSION;}
 }

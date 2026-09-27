@@ -3,13 +3,11 @@ import { escapeHTML } from '../views.js';
 function placementTime(value){
   const timestamp=Date.parse(value);
   if(!Number.isFinite(timestamp))return 'placed at an unknown time';
-  const days=Math.round((timestamp-Date.now())/86400000);
-  const formatter=new Intl.RelativeTimeFormat('en',{numeric:'auto'});
-  if(Math.abs(days)<1)return 'placed '+formatter.format(0,'day');
-  if(Math.abs(days)<30)return 'placed '+formatter.format(days,'day');
-  const months=Math.round(days/30);
-  if(Math.abs(months)<12)return 'placed '+formatter.format(months,'month');
-  return 'placed '+formatter.format(Math.round(days/365),'year');
+  const formatter=new Intl.DateTimeFormat('en',{
+    year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',
+    hour12:false,timeZone:'UTC',timeZoneName:'short'
+  });
+  return 'placed '+formatter.format(timestamp);
 }
 
 function gatheringsMarkup(gatherings=[]){

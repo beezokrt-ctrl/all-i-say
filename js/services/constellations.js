@@ -49,7 +49,7 @@ export async function placeUtterance(utteranceId,constellationId,{archive}={}){
  return repository.createMembership({
   utteranceId,
   constellationId,
-  provenance:{origin:'author',actorId:'owner'}
+  provenance:{origin:'author'}
  });
 }
 
@@ -64,13 +64,13 @@ export async function startConstellationFromUtterance(name,utteranceId,{archive}
  if(!cleanName)throw new Error('Constellation name is required');
  const constellation=await repository.createConstellation({
   name:cleanName,
-  provenance:{origin:'author',actorId:'owner'}
+  provenance:{origin:'author'}
  });
  try{
   const membership=await repository.createMembership({
    constellationId:constellation.id,
    utteranceId,
-   provenance:{origin:'author',actorId:'owner'}
+   provenance:{origin:'author'}
   });
   return {constellation,membership};
  } catch(error){

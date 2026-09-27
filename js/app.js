@@ -5,12 +5,12 @@ import { renderLibrary } from './views/library.js';
 import { getUtteranceInspection } from './services/inspect.js';
 import { inspectView } from './views/inspect.js';
 import { searchArchive } from './services/search.js';
-import { getConstellationPlaces, getLegacyThreadGatherings } from './services/constellations.js';
+import { getConstellationPlaces, getLegacyThreadGatherings, placeUtterance, withdrawUtteranceMembership, startConstellationFromUtterance } from './services/constellations.js';
 import { placesView, constellationDetailView, legacyGatheringDetailView } from './views/places.js';
 import { getBetweenData } from './services/between.js';
 
-class AllISayApp {
-  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.returnScroll = 0; this.driftId = null; }
+export class AllISayApp {
+  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.returnScroll = 0; this.driftId = null; this.inspectId = null; this.placesDirty = false; this.placeDetail = null; }
   async init() {
     const archive = await getArchive();
     const existing = await archive.listUtterances({ status: 'kept', limit: Infinity });
@@ -21,10 +21,11 @@ class AllISayApp {
   async refreshFromArchive() { this.entries = await this.loadEntries(); this.refreshDataViews(); }
   mount() { this.root.innerHTML = shellView(this.entries); this.bind(); this.refreshDataViews(); }
   bind() {
-    this.root.addEventListener('click', event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'mobileMore') this.toggleMobileMore(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.id === 'driftInspect' && this.driftId) this.inspect(this.driftId); if (event.target.id === 'inspectBack') this.navigate(this.returnRoute || 'home', { refresh: false, scrollTop: this.returnScroll }); const constellation=event.target.closest('[data-constellation-id]'); if(constellation)this.renderConstellation(constellation.dataset.constellationId); const legacy=event.target.closest('[data-legacy-place]'); if(legacy)this.renderLegacyPlace(legacy.dataset.legacyPlace); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
-    this.root.addEventListener('submit', event => { if (event.target.id === 'searchForm') { event.preventDefault(); this.renderSearch(document.querySelector('#searchInput')?.value || ''); } });
+    this.root.addEventListener('click', async event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'mobileMore') this.toggleMobileMore(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.id === 'driftInspect' && this.driftId) this.inspect(this.driftId); if (event.target.id === 'inspectBack') { if(this.returnRoute==='places'&&this.placesDirty){await this.renderPlaces();this.placesDirty=false;} this.navigate(this.returnRoute || 'home', { refresh: false, scrollTop: this.returnScroll }); } if(event.target.id==='openConstellationPicker')this.toggleConstellationPicker(true); if(event.target.id==='closeConstellationPicker')this.toggleConstellationPicker(false); const gather=event.target.closest('[data-gather-constellation]'); if(gather)await this.gatherInto(gather.dataset.gatherConstellation); const withdrawal=event.target.closest('[data-withdraw-membership]'); if(withdrawal)await this.withdrawGathering(withdrawal.dataset.withdrawMembership); const constellation=event.target.closest('[data-constellation-id]'); if(constellation)this.renderConstellation(constellation.dataset.constellationId); const legacy=event.target.closest('[data-legacy-place]'); if(legacy)this.renderLegacyPlace(legacy.dataset.legacyPlace); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
+    this.root.addEventListener('submit', async event => { if (event.target.id === 'searchForm') { event.preventDefault(); this.renderSearch(document.querySelector('#searchInput')?.value || ''); } if(event.target.id==='newConstellationForm'){event.preventDefault();await this.startConstellation(document.querySelector('#newConstellationName')?.value||'');} });
+    this.root.addEventListener('input', event => { if(event.target.id==='constellationFilter')this.filterConstellations(event.target.value); });
     this.root.addEventListener('change', event => { if (event.target.matches('#betweenA,#betweenB')) this.renderBetween(); });
-    this.root.addEventListener('keydown', event => { const entry=event.target.closest?.('[data-entry-id]'); if(entry && (event.key==='Enter'||event.key===' ')){ event.preventDefault(); this.inspect(entry.dataset.entryId); } });
+    this.root.addEventListener('keydown', event => { const entry=event.target.closest?.('[data-entry-id]'); if(entry && (event.key==='Enter'||event.key===' ')){ event.preventDefault(); this.inspect(entry.dataset.entryId); } if(event.key==='Escape'&&this.route==='inspect')this.toggleConstellationPicker(false); });
   }
   navigate(route, { refresh = true, scrollTop = 0 } = {}) { this.route = route; document.querySelectorAll('.panel').forEach(el => el.classList.toggle('is-active', el.id === route)); document.querySelectorAll('.nav-button,.mobile-nav-button').forEach(el => el.classList.toggle('is-active', el.dataset.route === route)); const more=document.querySelector('#mobileMore'); if(more) more.classList.toggle('is-active', route === 'search' || route === 'places'); this.closeMobileMore(); window.scrollTo({ top: scrollTop, behavior: 'instant' }); if (!refresh) return; if (route === 'drift') this.renderDrift(); if (route === 'between') this.renderBetween(); if (route === 'library') this.renderLibrary(); if (route === 'search') this.renderSearch(''); if (route === 'places') this.renderPlaces(); }
   toggleMobileMore(){ const menu=document.querySelector('#mobileMoreMenu'),button=document.querySelector('#mobileMore'); if(!menu||!button)return; const open=menu.hidden; menu.hidden=!open; button.setAttribute('aria-expanded',String(open)); }
@@ -55,11 +56,27 @@ class AllISayApp {
   async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; const results=query?await searchArchive(query):[]; mount.innerHTML=this.searchMarkup(results,query); }
   searchMarkup(results,query){ const items=results.map(item=>'<article class="library-item" tabindex="0" data-entry-id="'+this.escape(item.id)+'"><div class="eyebrow">'+this.escape(item.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(item.text??'[Artifact preserved]')+'</blockquote></article>').join(''); return '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2><form id="searchForm" class="search-form"><input id="searchInput" class="search-input" value="'+this.escape(query)+'" placeholder="Words, earlier thread, or form"><button class="button-primary">Search</button></form><div class="library-results">'+(query?(items||'<p class="note">Nothing matches those words.</p>'):'<p class="note">Search the record without changing it.</p>')+'</div>'; }
   escape(value){ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-  async renderPlaces(){ const mount=document.querySelector('#placesMount'); if(!mount)return; const [places,legacy]=await Promise.all([getConstellationPlaces(),getLegacyThreadGatherings()]); this.places=places;this.legacyPlaces=legacy;mount.innerHTML=placesView(places,legacy); }
-  renderConstellation(id){ const place=this.places?.find(x=>x.constellation.id===id),mount=document.querySelector('#placeDetail'); if(!place||!mount)return; mount.innerHTML=constellationDetailView(place);mount.scrollIntoView({behavior:'smooth'}); }
-  renderLegacyPlace(name){ const place=this.legacyPlaces?.find(x=>x.name===name),mount=document.querySelector('#placeDetail'); if(!place||!mount)return; mount.innerHTML=legacyGatheringDetailView(place);mount.scrollIntoView({behavior:'smooth'}); }
-  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect'){this.returnRoute=this.route;this.returnScroll=window.scrollY;} mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
+  async renderPlaces(){ const mount=document.querySelector('#placesMount'); if(!mount)return; const [places,legacy]=await Promise.all([getConstellationPlaces(),getLegacyThreadGatherings()]); this.places=places;this.legacyPlaces=legacy;mount.innerHTML=placesView(places,legacy); if(this.placeDetail?.kind==='constellation')this.renderConstellation(this.placeDetail.id,false); if(this.placeDetail?.kind==='legacy')this.renderLegacyPlace(this.placeDetail.name,false); }
+  renderConstellation(id,scroll=true){ const place=this.places?.find(x=>x.constellation.id===id),mount=document.querySelector('#placeDetail'); if(!place||!mount)return; this.placeDetail={kind:'constellation',id}; mount.innerHTML=constellationDetailView(place);if(scroll)mount.scrollIntoView({behavior:'smooth'}); }
+  renderLegacyPlace(name,scroll=true){ const place=this.legacyPlaces?.find(x=>x.name===name),mount=document.querySelector('#placeDetail'); if(!place||!mount)return; this.placeDetail={kind:'legacy',name}; mount.innerHTML=legacyGatheringDetailView(place);if(scroll)mount.scrollIntoView({behavior:'smooth'}); }
+  toggleConstellationPicker(open){ const picker=document.querySelector('#constellationPicker'); if(!picker)return; picker.hidden=!open; if(open)document.querySelector('#constellationFilter')?.focus(); }
+  filterConstellations(query){ const clean=String(query||'').trim().toLowerCase(); let visible=0; document.querySelectorAll('#constellationChoices [data-gather-constellation]').forEach(choice=>{const match=!clean||choice.dataset.constellationName.includes(clean);choice.hidden=!match;if(match)visible+=1;}); const empty=document.querySelector('#constellationNoMatch'); if(empty)empty.hidden=!clean||visible>0; }
+  setGatheringError(message=''){ const target=document.querySelector('#gatheringError'); if(target)target.textContent=message; }
+  async refreshInspect(){ if(!this.inspectId)return; const mount=document.querySelector('#inspectMount'); if(mount)mount.innerHTML=inspectView(await getUtteranceInspection(this.inspectId)); }
+  async gatherInto(constellationId){ if(!this.inspectId)return; this.setGatheringError(''); try{await placeUtterance(this.inspectId,constellationId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not gather these words.');} }
+  async withdrawGathering(membershipId){ this.setGatheringError(''); try{await withdrawUtteranceMembership(membershipId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not withdraw this placement.');} }
+  async startConstellation(name){ if(!this.inspectId)return; this.setGatheringError(''); try{await startConstellationFromUtterance(name,this.inspectId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not start that constellation.');} }
+  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect'){this.returnRoute=this.route;this.returnScroll=window.scrollY;} this.inspectId=id; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', async () => { const app = new AllISayApp(document.querySelector('#app')); await app.init(); app.mount(); });
-else { const app = new AllISayApp(document.querySelector('#app')); app.init().then(() => app.mount()); }
+function boot() {
+  const root = document.querySelector('#app');
+  if (!root) return;
+  const app = new AllISayApp(root);
+  app.init().then(() => app.mount());
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}

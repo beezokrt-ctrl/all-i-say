@@ -26,3 +26,44 @@ export async function getLegacyThreadGatherings(){
  }
  return [...groups].map(([name,items])=>({name,count:items.length,utterances:items})).sort((a,b)=>a.name.localeCompare(b.name));
 }
+
+export async function getUtteranceGatheringState(utteranceId,{archive}={}){
+ const repository=archive||await getArchive();
+ const [memberships,constellations]=await Promise.all([
+  repository.listMemberships({utteranceId,status:'active'}),
+  repository.listConstellations({status:'active'})
+ ]);
+ const byId=new Map(constellations.map(constellation=>[constellation.id,constellation]));
+ const gatherings=memberships
+  .map(membership=>({membership,constellation:byId.get(membership.constellationId)}))
+  .filter(item=>item.constellation);
+ const gatheredIds=new Set(gatherings.map(item=>item.constellation.id));
+ return {
+  gatherings,
+  available:constellations.filter(constellation=>!gatheredIds.has(constellation.id))
+ };
+}
+
+export async function placeUtterance(utteranceId,constellationId,{archive}={}){
+ const repository=archive||await getArchive();
+ return repository.createMembership({
+  utteranceId,
+  constellationId,
+  provenance:{origin:'author'}
+ });
+}
+
+export async function withdrawUtteranceMembership(membershipId,{archive,reason='author withdrawal'}={}){
+ const repository=archive||await getArchive();
+ return repository.withdrawMembership(membershipId,reason);
+}
+
+export async function startConstellationFromUtterance(name,utteranceId,{archive}={}){
+ const repository=archive||await getArchive();
+ const cleanName=String(name||'').trim();
+ if(!cleanName)throw new Error('Constellation name is required');
+ return repository.createConstellationWithMembership(
+  {name:cleanName,provenance:{origin:'author'}},
+  {utteranceId,provenance:{origin:'author'}}
+ );
+}

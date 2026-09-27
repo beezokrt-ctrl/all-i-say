@@ -510,3 +510,17 @@ test('Inspect UI events place, withdraw, and create-from-this through the bound 
   if(previousWindow===undefined)delete globalThis.window; else globalThis.window=previousWindow;
  }
 });
+
+
+test('create-from-this is atomic when the target utterance does not exist', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { startConstellationFromUtterance } = await import('../js/services/constellations.js');
+ const repository=new IndexedDBArchiveRepository({name:'atomic-start-constellation',indexedDB:new IDBFactory()});
+ await assert.rejects(
+  ()=>startConstellationFromUtterance('Must not remain','missing-utterance',{archive:repository}),
+  /Unknown utterance/
+ );
+ assert.deepEqual(await repository.listConstellations({status:undefined}),[]);
+ assert.deepEqual(await repository.listMemberships({status:undefined}),[]);
+});

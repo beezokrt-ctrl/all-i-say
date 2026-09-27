@@ -9,7 +9,7 @@ import { getConstellationPlaces, getLegacyThreadGatherings, placeUtterance, with
 import { placesView, constellationDetailView, legacyGatheringDetailView } from './views/places.js';
 import { getBetweenData } from './services/between.js';
 
-class AllISayApp {
+export class AllISayApp {
   constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.returnScroll = 0; this.driftId = null; this.inspectId = null; this.placesDirty = false; this.placeDetail = null; }
   async init() {
     const archive = await getArchive();
@@ -69,5 +69,14 @@ class AllISayApp {
   async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect'){this.returnRoute=this.route;this.returnScroll=window.scrollY;} this.inspectId=id; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); }
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', async () => { const app = new AllISayApp(document.querySelector('#app')); await app.init(); app.mount(); });
-else { const app = new AllISayApp(document.querySelector('#app')); app.init().then(() => app.mount()); }
+function boot() {
+  const root = document.querySelector('#app');
+  if (!root) return;
+  const app = new AllISayApp(root);
+  app.init().then(() => app.mount());
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}

@@ -312,3 +312,70 @@ test('tombstoning hides the utterance without erasing its active gathering histo
  assert.equal(memberships.length,1);
  assert.equal(memberships[0].id,'mem-tombstone-gathered');
 });
+
+
+test('Inspect renders gathering as placement rather than ownership', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const html=inspectView({
+  utterance:createUtterance({id:'u-inspect-gathered',text:'exact words'}),
+  artifacts:[],transcriptions:[],relations:[],
+  gatherings:[{
+   membership:{id:'mem-inspect',createdAt:'2026-09-26T12:00:00.000Z'},
+   constellation:{id:'con-inspect',name:'Darśana'}
+  }],
+  available:[{id:'con-other',name:'Jala Yāna'}]
+ });
+ assert.match(html,/Gathered in/i);
+ assert.match(html,/Darśana/);
+ assert.match(html,/data-withdraw-membership="mem-inspect"/);
+ assert.match(html,/Gather here →/);
+ assert.match(html,/Start a new constellation from this/);
+ assert.doesNotMatch(html,/suggest/i);
+ assert.doesNotMatch(html,/belongs to/i);
+});
+
+test('Inspect names the absence of gathering without turning it into a tag prompt', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const html=inspectView({
+  utterance:createUtterance({id:'u-inspect-empty',text:'unplaced words'}),
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[]
+ });
+ assert.match(html,/Not yet gathered anywhere\./);
+ assert.match(html,/Gather here →/);
+ assert.doesNotMatch(html,/tag/i);
+});
+
+test('constellation authoring service places and withdraws one utterance explicitly', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { placeUtterance, withdrawUtteranceMembership, getUtteranceGatheringState } = await import('../js/services/constellations.js');
+ const repository=new IndexedDBArchiveRepository({name:'inspect-authoring',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-authoring',text:'words'});
+ const first=await repository.createConstellation({id:'con-authoring-a',name:'First place',provenance:{origin:'author'}});
+ const second=await repository.createConstellation({id:'con-authoring-b',name:'Second place',provenance:{origin:'author'}});
+ const membership=await placeUtterance(utterance.id,first.id,{archive:repository});
+ let state=await getUtteranceGatheringState(utterance.id,{archive:repository});
+ assert.deepEqual(state.gatherings.map(x=>x.constellation.id),[first.id]);
+ assert.deepEqual(state.available.map(x=>x.id),[second.id]);
+ await withdrawUtteranceMembership(membership.id,{archive:repository});
+ state=await getUtteranceGatheringState(utterance.id,{archive:repository});
+ assert.deepEqual(state.gatherings,[]);
+ assert.deepEqual(state.available.map(x=>x.id),[first.id,second.id]);
+ const history=await repository.listMemberships({utteranceId:utterance.id,status:'withdrawn'});
+ assert.equal(history.length,1);
+ assert.equal(history[0].id,membership.id);
+});
+
+test('starting a constellation from Inspect creates an author assertion without suggestions', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { startConstellationFromUtterance } = await import('../js/services/constellations.js');
+ const repository=new IndexedDBArchiveRepository({name:'inspect-new-constellation',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-new-constellation',text:'first position'});
+ const {constellation,membership}=await startConstellationFromUtterance('  A new place  ',utterance.id,{archive:repository});
+ assert.equal(constellation.name,'A new place');
+ assert.equal(constellation.provenance.origin,'author');
+ assert.equal(membership.utteranceId,utterance.id);
+ assert.equal(membership.constellationId,constellation.id);
+ assert.equal(membership.provenance.origin,'author');
+});

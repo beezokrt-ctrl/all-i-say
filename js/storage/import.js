@@ -23,6 +23,12 @@ function normalizeImportPayload(payload){
  const memberships=(payload.memberships||[]).map(createMembership);
  const duplicates=(items,label)=>{const seen=new Set();for(const x of items){if(seen.has(x.id))throw new Error(`Duplicate ${label} id in import: ${x.id}`);seen.add(x.id);}};
  duplicates(utterances,'utterance');duplicates(artifacts.map(x=>x.meta),'artifact');duplicates(transcriptions,'transcription');duplicates(relations,'relation');duplicates(constellations,'constellation');duplicates(memberships,'membership');
+ const activePairs=new Set();
+ for(const membership of memberships)if(membership.status==='active'){
+  const pair=`${membership.constellationId}\u0000${membership.utteranceId}`;
+  if(activePairs.has(pair))throw new Error(`Duplicate active membership in import: ${membership.constellationId} / ${membership.utteranceId}`);
+  activePairs.add(pair);
+ }
  return {utterances,artifacts,transcriptions,relations,constellations,memberships};
 }
 

@@ -62,20 +62,8 @@ export async function startConstellationFromUtterance(name,utteranceId,{archive}
  const repository=archive||await getArchive();
  const cleanName=String(name||'').trim();
  if(!cleanName)throw new Error('Constellation name is required');
- const constellation=await repository.createConstellation({
-  name:cleanName,
-  provenance:{origin:'author'}
- });
- try{
-  const membership=await repository.createMembership({
-   constellationId:constellation.id,
-   utteranceId,
-   provenance:{origin:'author'}
-  });
-  return {constellation,membership};
- } catch(error){
-  // An empty constellation is still a valid lens. Do not erase the author's
-  // creation to simulate atomicity the repository does not provide.
-  throw error;
- }
+ return repository.createConstellationWithMembership(
+  {name:cleanName,provenance:{origin:'author'}},
+  {utteranceId,provenance:{origin:'author'}}
+ );
 }

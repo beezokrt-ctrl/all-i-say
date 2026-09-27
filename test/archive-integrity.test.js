@@ -396,14 +396,10 @@ test('Inspect keeps withdrawn relation history visible while adding gathering st
   provenance:{origin:'author'}
  });
  await repository.withdrawRelation(relation.id,'later withdrawal');
- const originalArchive=(await import('../js/services/archive.js'));
- // getUtteranceInspection uses the shared archive, so verify the repository contract
- // directly here and keep the regression assertion on the explicit status query.
- const history=await repository.listRelations({utteranceId:first.id,status:undefined});
- assert.equal(history.length,1);
- assert.equal(history[0].status,'withdrawn');
- assert.equal(typeof getUtteranceInspection,'function');
- assert.ok(originalArchive);
+ const inspection=await getUtteranceInspection(first.id,{archive:repository});
+ assert.equal(inspection.relations.length,1);
+ assert.equal(inspection.relations[0].id,relation.id);
+ assert.equal(inspection.relations[0].status,'withdrawn');
 });
 
 test('Inspect placement metadata is absolute rather than relative to the day viewed', async()=>{

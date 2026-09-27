@@ -1,3 +1,5 @@
+// Domain constructors normalize optional persisted fields to null. Undefined is not
+// a meaningful persisted value, so stable JSON comparison may safely omit it.
 const stable=value=>{
  if(value instanceof Blob)return {type:value.type,size:value.size};
  if(Array.isArray(value))return value.map(stable);
@@ -13,10 +15,14 @@ const sameBlob=async(a,b)=>{
  return true;
 };
 
+export function recordsStructurallyEquivalent(a,b){
+ return JSON.stringify(stable(a))===JSON.stringify(stable(b));
+}
+
 export async function recordsEquivalent(a,b){
  if(a?.blob||b?.blob){
   const {blob:ab,...am}=a||{}, {blob:bb,...bm}=b||{};
-  return JSON.stringify(stable(am))===JSON.stringify(stable(bm))&&await sameBlob(ab,bb);
+  return recordsStructurallyEquivalent(am,bm)&&await sameBlob(ab,bb);
  }
- return JSON.stringify(stable(a))===JSON.stringify(stable(b));
+ return recordsStructurallyEquivalent(a,b);
 }

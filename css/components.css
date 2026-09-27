@@ -107,6 +107,7 @@
 .gathering-withdraw{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--color-text-dim);font:500 10px/1 var(--font-meta);padding:12px}
 .gathering-withdraw:hover,.gathering-withdraw:focus-visible{color:var(--color-text);text-decoration:underline;text-underline-offset:4px}
 .gathering-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px}
+.gathering-actions .button-ghost,.gathering-picker-head .button-ghost{min-height:44px}
 .gathering-picker{margin-top:20px;padding:22px;border:1px solid var(--color-line);border-radius:var(--radius-md);background:var(--color-surface-2)}
 .gathering-picker[hidden]{display:none}
 .gathering-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:24px}

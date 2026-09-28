@@ -815,3 +815,125 @@ test('bound Inspect forms keep author readings through the actual event shell', 
   if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
  }
 });
+
+
+test('Relations never silently claim author provenance', async()=>{
+ const { createRelation } = await import('../js/domain/relation.js');
+ assert.throws(
+  ()=>createRelation({fromId:'u-a',toId:'u-b',type:'develops'}),
+  /relation.provenance.origin is required/
+ );
+});
+
+test('accepting a relation proposal atomically creates an author assertion linked to its suggestion', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'proposal-acceptance',indexedDB:new IDBFactory()});
+ const first=await repository.createUtterance({id:'u-proposal-first',text:'first position'});
+ const second=await repository.createUtterance({id:'u-proposal-second',text:'second position'});
+ const suggestion=await repository.createSuggestion({
+  id:'sug-accept-relation',
+  kind:'relation',
+  payload:{type:'returns-to',fromId:first.id,toId:second.id,directional:true},
+  provenance:{origin:'ai',model:'test-model'}
+ });
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+ const accepted=await repository.acceptRelationSuggestion(suggestion.id);
+ assert.equal(accepted.suggestion.status,'accepted');
+ assert.ok(accepted.suggestion.decidedAt);
+ assert.equal(accepted.relation.type,'returns-to');
+ assert.equal(accepted.relation.provenance.origin,'author');
+ assert.equal(accepted.relation.provenance.suggestionId,suggestion.id);
+ assert.equal((await repository.getSuggestion(suggestion.id)).status,'accepted');
+ assert.deepEqual(await repository.listSuggestions({status:'pending'}),[]);
+ await assert.rejects(()=>repository.acceptRelationSuggestion(suggestion.id),/already accepted/);
+ assert.equal((await repository.listRelations({status:undefined})).length,1);
+});
+
+test('rejecting a proposal preserves the proposal and creates no canonical relation', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'proposal-rejection',indexedDB:new IDBFactory()});
+ const suggestion=await repository.createSuggestion({
+  id:'sug-reject-relation',
+  kind:'relation',
+  payload:{fromId:'u-not-needed-a',toId:'u-not-needed-b'},
+  provenance:{origin:'ai',model:'test-model'}
+ });
+ const rejected=await repository.rejectSuggestion(suggestion.id,'not a relation I assert');
+ assert.equal(rejected.status,'rejected');
+ assert.ok(rejected.decidedAt);
+ assert.equal(rejected.decisionReason,'not a relation I assert');
+ assert.equal((await repository.getSuggestion(suggestion.id)).status,'rejected');
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('failed proposal acceptance leaves the proposal pending and creates nothing', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'proposal-atomic-failure',indexedDB:new IDBFactory()});
+ const first=await repository.createUtterance({id:'u-proposal-present',text:'present'});
+ const suggestion=await repository.createSuggestion({
+  id:'sug-dangling-relation',
+  kind:'relation',
+  payload:{fromId:first.id,toId:'u-proposal-missing',type:'develops'},
+  provenance:{origin:'ai',model:'test-model'}
+ });
+ await assert.rejects(()=>repository.acceptRelationSuggestion(suggestion.id),/Unknown utterance/);
+ assert.equal((await repository.getSuggestion(suggestion.id)).status,'pending');
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('Inspect marks machine proposals as noncanonical and requires explicit action', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const html=inspectView({
+  utterance:createUtterance({id:'u-proposal-view',text:'my words'}),
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  proposals:[{
+   suggestion:{id:'sug-view',kind:'relation',payload:{type:'develops',fromId:'u-proposal-view',toId:'u-other'},provenance:{origin:'ai',model:'test-model'}},
+   other:createUtterance({id:'u-other',text:'other exact words'})
+  }]
+ });
+ assert.match(html,/Proposal · not a relation/);
+ assert.match(html,/Nothing enters declared structure unless you accept it/);
+ assert.match(html,/other exact words/);
+ assert.match(html,/data-accept-suggestion="sug-view"/);
+ assert.match(html,/data-reject-suggestion="sug-view"/);
+ assert.ok(html.indexOf('my words') < html.indexOf('Proposal · not a relation'));
+});
+
+test('bound proposal decision turns a pending suggestion into a relation only after the click', async()=>{
+ const previousDocument=globalThis.document;
+ const previousWindow=globalThis.window;
+ globalThis.document={readyState:'complete',querySelector(){return null;},querySelectorAll(){return [];},addEventListener(){}};
+ globalThis.window={scrollY:0,scrollTo(){}};
+ try{
+  const { AllISayApp } = await import('../js/app.js');
+  const { getArchive } = await import('../js/services/archive.js');
+  const archive=await getArchive();
+  const first=await archive.createUtterance({id:'u-ui-proposal-a',text:'one'});
+  const second=await archive.createUtterance({id:'u-ui-proposal-b',text:'two'});
+  const suggestion=await archive.createSuggestion({
+   id:'sug-ui-decision',kind:'relation',
+   payload:{type:'develops',fromId:first.id,toId:second.id},
+   provenance:{origin:'ai',model:'test-model'}
+  });
+  class Root{
+   constructor(){this.listeners=new Map();}
+   addEventListener(type,handler){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(handler);}
+   async dispatch(type,target){const event={target,preventDefault(){},key:null};for(const handler of this.listeners.get(type)||[])await handler(event);}
+  }
+  const root=new Root(),app=new AllISayApp(root);
+  app.inspectId=first.id;app.refreshInspect=async()=>{};app.bind();
+  assert.equal((await archive.listRelations({status:undefined})).some(x=>x.provenance?.suggestionId===suggestion.id),false);
+  const target={id:'',dataset:{acceptSuggestion:suggestion.id},closest(selector){return selector==='[data-accept-suggestion]'?this:null;}};
+  await root.dispatch('click',target);
+  const relation=(await archive.listRelations({status:undefined})).find(x=>x.provenance?.suggestionId===suggestion.id);
+  assert.ok(relation);
+  assert.equal(relation.provenance.origin,'author');
+  assert.equal((await archive.getSuggestion(suggestion.id)).status,'accepted');
+ } finally {
+  if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
+  if(previousWindow===undefined)delete globalThis.window; else globalThis.window=previousWindow;
+ }
+});

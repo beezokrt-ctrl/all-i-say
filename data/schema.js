@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 export const DATE_PRECISIONS = ['exact','day','month','year','unknown','approximate'];
 export const RELATION_TYPES = ['corrects','returns-to','develops','contradicts','responds-to','continues','similar-to'];
 export const FORM_TYPES = ['fragment','lyric','fiction','question','essay','note','correction','unknown'];
@@ -130,5 +130,16 @@ export function validateSuggestion(value){
   if(!object(value.payload))throw new Error('suggestion.payload must be an object');
   provenance(value.provenance,'suggestion');
   if(!['pending','accepted','rejected'].includes(value.status))throw new Error('suggestion.status is invalid');
+  if(value.status==='pending'){
+    if(value.decision!==null&&value.decision!==undefined)throw new Error('pending suggestion cannot have a decision');
+    return true;
+  }
+  if(!object(value.decision))throw new Error('decided suggestion must have a decision');
+  if(value.decision.status!==value.status)throw new Error('suggestion.decision.status must match suggestion.status');
+  string(value.decision.decidedAt,'suggestion.decision.decidedAt');
+  provenance(value.decision.provenance,'suggestion.decision');
+  if(value.decision.provenance.origin!=='author')throw new Error('suggestion decision must be author provenance');
+  if(value.status==='accepted')string(value.decision.canonicalEntityId,'suggestion.decision.canonicalEntityId');
+  if(value.status==='rejected'&&value.decision.canonicalEntityId!==null&&value.decision.canonicalEntityId!==undefined)throw new Error('rejected suggestion cannot name a canonical entity');
   return true;
 }

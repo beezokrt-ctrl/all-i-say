@@ -86,6 +86,7 @@ export function validateRelation(value){
   if(!object(value))throw new Error('Relation must be an object');
   string(value.id,'relation.id');
   string(value.type,'relation.type');
+  if(!RELATION_TYPES.includes(value.type))throw new Error('relation.type is invalid');
   string(value.fromId,'relation.fromId');
   string(value.toId,'relation.toId');
   if(typeof value.directional!=='boolean')throw new Error('relation.directional must be boolean');

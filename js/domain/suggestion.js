@@ -6,6 +6,6 @@ function explicitProvenance(input) {
   return input;
 }
 export function createSuggestion(input = {}) {
-  const value = { id: input.id || makeEntityId('sug'), kind: input.kind || 'relation', payload: input.payload || {}, provenance: { origin: explicitProvenance(input.provenance).origin, model: input.provenance?.model ?? null, confidence: input.provenance?.confidence ?? null, createdAt: input.provenance?.createdAt || new Date().toISOString() }, status: input.status || 'pending' };
+  const value = { id: input.id || makeEntityId('sug'), kind: input.kind || 'relation', payload: input.payload || {}, provenance: { origin: explicitProvenance(input.provenance).origin, model: input.provenance?.model ?? null, confidence: input.provenance?.confidence ?? null, createdAt: input.provenance?.createdAt || new Date().toISOString() }, status: input.status || 'pending', decidedAt: input.decidedAt ?? null, decisionReason: input.decisionReason ?? null };
   validateSuggestion(value); return Object.freeze(value);
 }

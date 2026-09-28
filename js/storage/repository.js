@@ -87,8 +87,17 @@ export class ArchiveRepository {
   async createSuggestion(_data) {
     throw new Error('Not implemented: createSuggestion');
   }
+  async getSuggestion(_id) {
+    throw new Error('Not implemented: getSuggestion');
+  }
   async listSuggestions(_filters = {}) {
     throw new Error('Not implemented: listSuggestions');
+  }
+  async acceptRelationSuggestion(_id) {
+    throw new Error('Not implemented: acceptRelationSuggestion');
+  }
+  async rejectSuggestion(_id, _reason = null) {
+    throw new Error('Not implemented: rejectSuggestion');
   }
   async getSchemaVersion() {
     throw new Error('Not implemented: getSchemaVersion');

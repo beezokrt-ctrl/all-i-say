@@ -841,6 +841,7 @@ test('accepting a relation proposal atomically creates an author assertion linke
  const accepted=await repository.acceptRelationSuggestion(suggestion.id);
  assert.equal(accepted.suggestion.status,'accepted');
  assert.ok(accepted.suggestion.decidedAt);
+ assert.deepEqual(accepted.suggestion.decisionProvenance,{origin:'author'});
  assert.equal(accepted.relation.type,'returns-to');
  assert.equal(accepted.relation.provenance.origin,'author');
  assert.equal(accepted.relation.provenance.suggestionId,suggestion.id);
@@ -863,6 +864,7 @@ test('rejecting a proposal preserves the proposal and creates no canonical relat
  const rejected=await repository.rejectSuggestion(suggestion.id,'not a relation I assert');
  assert.equal(rejected.status,'rejected');
  assert.ok(rejected.decidedAt);
+ assert.deepEqual(rejected.decisionProvenance,{origin:'author'});
  assert.equal(rejected.decisionReason,'not a relation I assert');
  assert.equal((await repository.getSuggestion(suggestion.id)).status,'rejected');
  assert.deepEqual(await repository.listRelations({status:undefined}),[]);
@@ -891,7 +893,8 @@ test('Inspect marks machine proposals as noncanonical and requires explicit acti
   artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
   proposals:[{
    suggestion:{id:'sug-view',kind:'relation',payload:{type:'develops',fromId:'u-proposal-view',toId:'u-other'},provenance:{origin:'ai',model:'test-model'}},
-   other:createUtterance({id:'u-other',text:'other exact words'})
+   other:createUtterance({id:'u-other',text:'other exact words'}),
+   currentId:'u-proposal-view'
   }]
  });
  assert.match(html,/Proposal · not a relation/);
@@ -936,4 +939,22 @@ test('bound proposal decision turns a pending suggestion into a relation only af
   if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
   if(previousWindow===undefined)delete globalThis.window; else globalThis.window=previousWindow;
  }
+});
+
+
+test('proposal direction is visible before accepting a directional relation', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const current=createUtterance({id:'u-direction-current',text:'current position'});
+ const other=createUtterance({id:'u-direction-other',text:'earlier position'});
+ const html=inspectView({
+  utterance:current,
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  proposals:[{
+   suggestion:{id:'sug-direction',kind:'relation',payload:{type:'responds-to',fromId:other.id,toId:current.id,directional:true},provenance:{origin:'ai',model:'test-model'}},
+   other,
+   currentId:current.id
+  }]
+ });
+ assert.match(html,/referenced words → these words/);
+ assert.doesNotMatch(html,/these words → referenced words/);
 });

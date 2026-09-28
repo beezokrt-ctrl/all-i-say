@@ -26,7 +26,7 @@ import { createAnnotation } from '../domain/annotation.js';
 import { createInterpretation } from '../domain/interpretation.js';
 import { createSuggestion } from '../domain/suggestion.js';
 import {
-  validateUtterance, validateTranscription, validateRelation, validateMembership, SCHEMA_VERSION
+  validateUtterance, validateTranscription, validateRelation, validateMembership, validateSuggestion, SCHEMA_VERSION
 }
 from '../../data/schema.js';
 import {
@@ -352,11 +352,56 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async getSuggestion(id){
+    const db=await this.open();
+    return clone(await result(db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS).get(id)));
+  }
   async listSuggestions({status='pending',kind}={}){
     const db=await this.open(),s=db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS);
     let vs=status===undefined?await result(s.getAll()):await result(s.index('status').getAll(status));
     if(kind!==undefined)vs=vs.filter(v=>v.kind===kind);
     return vs.map(clone);
+  }
+  async acceptRelationSuggestion(id){
+    const db=await this.open(),tx=db.transaction([SUGGESTIONS,RELATIONS,UTTERANCES],'readwrite');
+    const suggestions=tx.objectStore(SUGGESTIONS),relations=tx.objectStore(RELATIONS),utterances=tx.objectStore(UTTERANCES);
+    try{
+      const suggestion=await result(suggestions.get(id));
+      if(!suggestion)throw new Error(`Unknown suggestion: ${id}`);
+      if(suggestion.status!=='pending')throw new Error(`Suggestion is already ${suggestion.status}`);
+      if(suggestion.kind!=='relation')throw new Error(`Unsupported suggestion kind: ${suggestion.kind}`);
+      const {fromId,toId,type='develops',directional=true,note=null}=suggestion.payload||{};
+      if(!fromId||!toId)throw new Error('Relation suggestion requires fromId and toId');
+      if(!await result(utterances.get(fromId)))throw new Error(`Unknown utterance: ${fromId}`);
+      if(!await result(utterances.get(toId)))throw new Error(`Unknown utterance: ${toId}`);
+      const relation=createRelation({type,fromId,toId,directional,note,provenance:{origin:'author',suggestionId:suggestion.id}});
+      const decidedAt=new Date().toISOString();
+      const accepted={...suggestion,status:'accepted',decidedAt,decisionReason:null};
+      validateSuggestion(accepted);
+      relations.add(clone(relation));
+      suggestions.put(clone(accepted));
+      await complete(tx);
+      return {suggestion:clone(accepted),relation:clone(relation)};
+    } catch(error){
+      try{tx.abort();}catch{}
+      throw error;
+    }
+  }
+  async rejectSuggestion(id,reason=null){
+    const db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite'),s=tx.objectStore(SUGGESTIONS);
+    try{
+      const suggestion=await result(s.get(id));
+      if(!suggestion)throw new Error(`Unknown suggestion: ${id}`);
+      if(suggestion.status!=='pending')throw new Error(`Suggestion is already ${suggestion.status}`);
+      const rejected={...suggestion,status:'rejected',decidedAt:new Date().toISOString(),decisionReason:reason};
+      validateSuggestion(rejected);
+      s.put(clone(rejected));
+      await complete(tx);
+      return clone(rejected);
+    } catch(error){
+      try{tx.abort();}catch{}
+      throw error;
+    }
   }
   async importAll(payload,{
     conflict='error'

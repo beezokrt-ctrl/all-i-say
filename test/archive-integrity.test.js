@@ -888,7 +888,8 @@ test('Inspect keeps pending machine proposals outside Relations until accepted',
     provenance:{origin:'ai',model:'test-model',confidence:.75}
    },
    currentId:'u-proposal-view',
-   otherUtterance:createUtterance({id:'u-other',text:'another position'})
+   otherUtterance:createUtterance({id:'u-other',text:'another position'}),
+   currentId:'u-proposal-view'
   }]
  });
  assert.match(html,/Pending machine proposal/);
@@ -958,6 +959,24 @@ test('proposal review shows direction from the inspected position before accepta
    },
    currentId:current.id,
    otherUtterance:other
+  }]
+ });
+ assert.match(html,/referenced words → these words/);
+ assert.doesNotMatch(html,/these words → referenced words/);
+});
+
+
+test('proposal direction is visible from either inspected position', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const current=createUtterance({id:'u-direction-current',text:'current position'});
+ const other=createUtterance({id:'u-direction-other',text:'earlier position'});
+ const html=inspectView({
+  utterance:current,
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  pendingSuggestions:[{
+   suggestion:{id:'sug-direction',kind:'relation',status:'pending',payload:{type:'responds-to',fromId:other.id,toId:current.id,directional:true},provenance:{origin:'ai',model:'test-model',confidence:.5}},
+   otherUtterance:other,
+   currentId:current.id
   }]
  });
  assert.match(html,/referenced words → these words/);

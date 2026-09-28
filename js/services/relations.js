@@ -9,14 +9,14 @@ export async function listRelations(filters = {}) {
   return archive.listRelations(filters);
 }
 
-export async function createAuthorRelation(data) {
-  const archive = await getArchive();
+export async function createAuthorRelation(data, { archive } = {}) {
+  const repository = archive || await getArchive();
   const relation = createRelation({
     ...data,
     id: data.id || makeEntityId('rel'),
     provenance: { origin: 'author', createdAt: new Date().toISOString() }
   });
-  const stored = await archive.createRelation(relation);
+  const stored = await repository.createRelation(relation);
   await emit('relation:created', stored);
   return stored;
 }

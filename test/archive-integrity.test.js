@@ -1005,3 +1005,21 @@ test('Inspect renders relation words, direction, and provenance without replacin
  assert.match(html,/author assertion · accepted from machine proposal · test-model/);
  assert.match(html,/data-entry-id="u-relation-view-other"/);
 });
+
+
+test('proposal direction is visible from either inspected position', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const current=createUtterance({id:'u-direction-current',text:'current position'});
+ const other=createUtterance({id:'u-direction-other',text:'earlier position'});
+ const html=inspectView({
+  utterance:current,
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  pendingSuggestions:[{
+   suggestion:{id:'sug-direction',kind:'relation',status:'pending',payload:{type:'responds-to',fromId:other.id,toId:current.id,directional:true},provenance:{origin:'ai',model:'test-model',confidence:.5}},
+   otherUtterance:other,
+   currentId:current.id
+  }]
+ });
+ assert.match(html,/referenced words → these words/);
+ assert.doesNotMatch(html,/these words → referenced words/);
+});

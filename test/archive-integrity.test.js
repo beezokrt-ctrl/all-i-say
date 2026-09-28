@@ -888,8 +888,7 @@ test('Inspect keeps pending machine proposals outside Relations until accepted',
     provenance:{origin:'ai',model:'test-model',confidence:.75}
    },
    currentId:'u-proposal-view',
-   otherUtterance:createUtterance({id:'u-other',text:'another position'}),
-   currentId:'u-proposal-view'
+   otherUtterance:createUtterance({id:'u-other',text:'another position'})
   }]
  });
  assert.match(html,/Pending machine proposal/);

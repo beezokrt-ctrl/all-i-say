@@ -207,10 +207,20 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async createRelation(data){
-    const v=createRelation(data),db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
-    tx.objectStore(RELATIONS).add(clone(v));
-    await complete(tx);
-    return clone(v);
+    const v=createRelation(data),db=await this.open(),tx=db.transaction([RELATIONS,UTTERANCES],'readwrite');
+    const done=complete(tx);
+    try{
+      const utterances=tx.objectStore(UTTERANCES);
+      if(!await result(utterances.get(v.fromId)))throw new Error(`Unknown utterance: ${v.fromId}`);
+      if(!await result(utterances.get(v.toId)))throw new Error(`Unknown utterance: ${v.toId}`);
+      tx.objectStore(RELATIONS).add(clone(v));
+      await done;
+      return clone(v);
+    }catch(error){
+      try{tx.abort();}catch{}
+      try{await done;}catch{}
+      throw error;
+    }
   }
   async getRelation(id){
     const db=await this.open();

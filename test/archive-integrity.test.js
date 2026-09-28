@@ -815,3 +815,127 @@ test('bound Inspect forms keep author readings through the actual event shell', 
   if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
  }
 });
+
+
+test('AI gateway can only leave a pending proposal, never a canonical relation', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { proposeRelation } = await import('../js/services/ai/aiGateway.js');
+ const repository=new IndexedDBArchiveRepository({name:'ai-gateway-pending-only',indexedDB:new IDBFactory()});
+ const from=await repository.createUtterance({id:'u-ai-from',text:'earlier'});
+ const to=await repository.createUtterance({id:'u-ai-to',text:'later'});
+ const suggestion=await proposeRelation({
+  type:'develops',fromId:from.id,toId:to.id,note:'possible movement'
+ },{model:'test-model',confidence:.72,archive:repository});
+ assert.equal(suggestion.status,'pending');
+ assert.equal(suggestion.provenance.origin,'ai');
+ assert.equal(suggestion.provenance.model,'test-model');
+ assert.equal(suggestion.decision,null);
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('accepting a relation proposal atomically records author decision and canonical provenance', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { proposeRelation } = await import('../js/services/ai/aiGateway.js');
+ const repository=new IndexedDBArchiveRepository({name:'accept-proposal',indexedDB:new IDBFactory()});
+ const from=await repository.createUtterance({id:'u-accept-from',text:'one'});
+ const to=await repository.createUtterance({id:'u-accept-to',text:'two'});
+ const proposal=await proposeRelation({type:'returns-to',fromId:from.id,toId:to.id},{model:'test-model',confidence:.61,archive:repository});
+ const {suggestion,relation}=await repository.acceptRelationSuggestion(proposal.id);
+ assert.equal(suggestion.status,'accepted');
+ assert.equal(suggestion.decision.status,'accepted');
+ assert.equal(suggestion.decision.provenance.origin,'author');
+ assert.equal(suggestion.decision.canonicalEntityId,relation.id);
+ assert.equal(relation.provenance.origin,'ai');
+ assert.equal(relation.provenance.model,'test-model');
+ assert.equal(relation.provenance.suggestionId,proposal.id);
+ assert.equal((await repository.listRelations({status:'active'})).length,1);
+ await assert.rejects(()=>repository.acceptRelationSuggestion(proposal.id),/already accepted/);
+ assert.equal((await repository.listRelations({status:'active'})).length,1);
+});
+
+test('rejecting a proposal records the decision without creating canonical structure', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { proposeRelation } = await import('../js/services/ai/aiGateway.js');
+ const repository=new IndexedDBArchiveRepository({name:'reject-proposal',indexedDB:new IDBFactory()});
+ const from=await repository.createUtterance({id:'u-reject-from',text:'one'});
+ const to=await repository.createUtterance({id:'u-reject-to',text:'two'});
+ const proposal=await proposeRelation({type:'contradicts',fromId:from.id,toId:to.id},{model:'test-model',confidence:.8,archive:repository});
+ const rejected=await repository.rejectSuggestion(proposal.id);
+ assert.equal(rejected.status,'rejected');
+ assert.equal(rejected.decision.provenance.origin,'author');
+ assert.equal(rejected.decision.canonicalEntityId,null);
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('canonical relations cannot silently claim author provenance or unknown types', async()=>{
+ const { createRelation } = await import('../js/domain/relation.js');
+ assert.throws(()=>createRelation({type:'develops',fromId:'a',toId:'b'}),/provenance.origin is required/);
+ assert.throws(()=>createRelation({type:'invented-relation',fromId:'a',toId:'b',provenance:{origin:'author'}}),/relation.type is invalid/);
+});
+
+test('Inspect keeps pending machine proposals outside Relations until accepted', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const html=inspectView({
+  utterance:createUtterance({id:'u-proposal-view',text:'the record'}),
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  pendingSuggestions:[{
+   suggestion:{
+    id:'sug-view',kind:'relation',status:'pending',
+    payload:{type:'develops',fromId:'u-proposal-view',toId:'u-other'},
+    provenance:{origin:'ai',model:'test-model',confidence:.75}
+   },
+   otherUtterance:createUtterance({id:'u-other',text:'another position'})
+  }]
+ });
+ assert.match(html,/Pending machine proposal/);
+ assert.match(html,/A machine proposal is not a relation unless you accept it/);
+ assert.match(html,/Accept as relation/);
+ assert.match(html,/data-reject-suggestion="sug-view"/);
+ assert.match(html,/another position/);
+ const proposalIndex=html.indexOf('Pending machine proposal');
+ const relationsIndex=html.lastIndexOf('<h2>Relations</h2>');
+ assert.ok(proposalIndex < relationsIndex);
+});
+
+test('bound proposal decisions require the explicit Inspect action', async()=>{
+ const previousDocument=globalThis.document;
+ globalThis.document={readyState:'complete',querySelector(){return null;},querySelectorAll(){return [];},addEventListener(){}};
+ try{
+  const { AllISayApp } = await import('../js/app.js');
+  const { getArchive } = await import('../js/services/archive.js');
+  const { proposeRelation } = await import('../js/services/ai/aiGateway.js');
+  const archive=await getArchive();
+  const from=await archive.createUtterance({id:'u-ui-proposal-from',text:'one'});
+  const to=await archive.createUtterance({id:'u-ui-proposal-to',text:'two'});
+  const accept=await proposeRelation({type:'continues',fromId:from.id,toId:to.id},{model:'test-model',confidence:.7,archive});
+  const reject=await proposeRelation({type:'similar-to',fromId:from.id,toId:to.id},{model:'test-model',confidence:.6,archive});
+
+  class Root{
+   constructor(){this.listeners=new Map();}
+   addEventListener(type,handler){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(handler);}
+   async dispatch(type,target){const event={target,preventDefault(){},key:null};for(const handler of this.listeners.get(type)||[])await handler(event);}
+  }
+  const target=(kind,id)=>({
+   id:'',dataset:kind==='accept'?{acceptSuggestion:id}:{rejectSuggestion:id},
+   closest(selector){
+    if(kind==='accept'&&selector==='[data-accept-suggestion]')return this;
+    if(kind==='reject'&&selector==='[data-reject-suggestion]')return this;
+    return null;
+   }
+  });
+  const root=new Root(),app=new AllISayApp(root);
+  app.inspectId=from.id;app.refreshInspect=async()=>{};app.bind();
+  assert.deepEqual(await archive.listRelations({status:undefined}),[]);
+  await root.dispatch('click',target('accept',accept.id));
+  assert.equal((await archive.getSuggestion(accept.id)).status,'accepted');
+  assert.equal((await archive.listRelations({status:'active'})).length,1);
+  await root.dispatch('click',target('reject',reject.id));
+  assert.equal((await archive.getSuggestion(reject.id)).status,'rejected');
+  assert.equal((await archive.listRelations({status:'active'})).length,1);
+ } finally {
+  if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
+ }
+});

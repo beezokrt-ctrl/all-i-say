@@ -1,3 +1,4 @@
+import { migrateLegacyTemporal } from './migrations/legacy-temporal.js';
 import {
   createUtterance
 }
@@ -30,7 +31,7 @@ const decodeDataURL = data => {
 function normalizeImportPayload(payload){
   if(!payload||![2,3].includes(payload.exportFormatVersion))throw new Error('Unsupported export format version');
   for(const key of ['utterances','artifacts','transcriptions','relations'])if(!Array.isArray(payload[key]))throw new Error(`Import payload missing ${key} array`);
-  const utterances=payload.utterances.map(createUtterance);
+  const utterances=payload.utterances.map(value=>createUtterance(migrateLegacyTemporal(value)));
   const artifacts=payload.artifacts.map(item=>{
     const {
       data,...meta

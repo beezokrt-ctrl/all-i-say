@@ -1,9 +1,9 @@
 /**
  * Backup and export utilities.
  *
- * Every migration snapshots the store before any write. The backup is
- * independent of the import/export format and is retained as a secondary
- * safety net.
+ * Legacy utterance-only snapshot utility. Database upgrades use
+ * upgrade-backup.js for a complete raw recovery copy; portable full backups
+ * use export.js. This utility is not a complete archive backup.
  */
 
 const BACKUP_PREFIX = 'all-i-say-backup-';

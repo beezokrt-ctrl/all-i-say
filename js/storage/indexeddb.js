@@ -1,3 +1,5 @@
+import { migrateLegacyTemporal } from './migrations/legacy-temporal.js';
+import { backUpBeforeUpgrade } from './upgrade-backup.js';
 import {
   ArchiveRepository
 }
@@ -52,7 +54,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
   }
   async open(){
     if(!this.databasePromise)this.databasePromise=new Promise((ok,no)=>{
-      const r=this.indexedDB.open(this.name,DB_VERSION);r.onupgradeneeded=()=>{
+      let upgradeError,blocked=false;
+      const r=this.indexedDB.open(this.name,DB_VERSION);r.onupgradeneeded=event=>{
+        if(blocked){r.transaction.abort();return;}
+        backUpBeforeUpgrade({indexedDB:this.indexedDB,name:this.name,request:r,oldVersion:event.oldVersion,onError:error=>{upgradeError=error;},upgrade:()=>{
         const db=r.result,tx=r.transaction;const u=db.objectStoreNames.contains(UTTERANCES)?tx.objectStore(UTTERANCES):db.createObjectStore(UTTERANCES,{
           keyPath:'id'
         });if(!u.indexNames.contains('createdAt'))u.createIndex('createdAt','createdAt');if(u.indexNames.contains('spokenAt'))u.deleteIndex('spokenAt');if(!u.indexNames.contains('temporalEarliest'))u.createIndex('temporalEarliest','temporal.earliest');if(!u.indexNames.contains('status'))u.createIndex('status','metadata.status');if(!db.objectStoreNames.contains(ARTIFACTS))db.createObjectStore(ARTIFACTS,{
@@ -79,29 +84,17 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
         }
         if(!db.objectStoreNames.contains(META))db.createObjectStore(META,{
           keyPath:'key'
-        }); if(r.oldVersion<4){
+        }); if(event.oldVersion<4){
           const req=u.openCursor();req.onsuccess=()=>{
-            const c=req.result;if(!c)return;const v=c.value;if(!v.temporal){
-              const display=v.displayDate||null,precision=v.datePrecision||'unknown';let earliest=null,latest=null;if(display&&precision==='month'){
-                const m=String(display).match(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+(\\d{4})\\b/i);if(m){
-                  const months={
-                    jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12
-                  },month=months[m[1].slice(0,3).toLowerCase()],year=Number(m[2]),mm=String(month).padStart(2,'0'),last=String(new Date(year,month,0).getDate()).padStart(2,'0');earliest=`${year}-${mm}-01`;latest=`${year}-${mm}-${last}`;
-                }
-              } else if(display&&precision==='year'&&/\\b\\d{4}\\b/.test(display)){
-                const year=display.match(/\\b(\\d{4})\\b/)[1];earliest=`${year}-01-01`;latest=`${year}-12-31`;
-              } else if(v.spokenAt&&(precision==='day'||precision==='exact')){
-                earliest=String(v.spokenAt).slice(0,10);latest=earliest;
-              }
-              v.temporal={
-                earliest,latest,precision,display
-              };delete v.spokenAt;delete v.datePrecision;delete v.displayDate;c.update(v);
-            }
+            const c=req.result;if(!c)return;const v=c.value;
+            try{const migrated=migrateLegacyTemporal(v);if(!v.temporal)c.update(migrated);}
+            catch(error){upgradeError=error;tx.abort();return;}
             c.continue();
           };
         }
+        }});
       }
-      r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('Unable to open IndexedDB'));r.onblocked=()=>no(new Error('IndexedDB upgrade is blocked'));
+      r.onsuccess=()=>{if(blocked){r.result.close();return;}r.result.onversionchange=()=>r.result.close();ok(r.result);};r.onerror=()=>{this.databasePromise=null;no(upgradeError||r.error||new Error('Unable to open IndexedDB'));};r.onblocked=()=>{blocked=true;no(new Error('IndexedDB upgrade is blocked. Close other archive windows and reload.'));};
     });
     return this.databasePromise;
   }
@@ -163,6 +156,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return (await result(db.transaction(ARTIFACTS).objectStore(ARTIFACTS).getAll())).map(clone);
   }
   async createTranscription(data){
+    if(data.provenance?.origin==='ai')throw new Error('Machine output must remain a pending Suggestion');
     const v=createTranscription(data),db=await this.open(),tx=db.transaction(TRANSCRIPTIONS,'readwrite');
     tx.objectStore(TRANSCRIPTIONS).add(clone(v));
     await complete(tx);
@@ -192,6 +186,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async createRelation(data){
+    if(data.provenance?.origin==='ai')throw new Error('Machine output must remain a pending Suggestion');
     const v=createRelation(data),db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
     tx.objectStore(RELATIONS).add(clone(v));
     await complete(tx);
@@ -223,12 +218,14 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async createConstellation(data){
+    if(data.provenance?.origin==='ai')throw new Error('Machine output must remain a pending Suggestion');
     const v=createConstellation(data),db=await this.open(),tx=db.transaction(CONSTELLATIONS,'readwrite');
     tx.objectStore(CONSTELLATIONS).add(clone(v));
     await complete(tx);
     return clone(v);
   }
   async createConstellationWithMembership(constellationData,membershipData){
+    if([constellationData,membershipData].some(value=>value.provenance?.origin==='ai'))throw new Error('Machine output must remain a pending Suggestion');
     const constellation=createConstellation(constellationData);
     const membership=createMembership({...membershipData,constellationId:constellation.id});
     const db=await this.open(),tx=db.transaction([CONSTELLATIONS,MEMBERSHIPS,UTTERANCES],'readwrite');
@@ -257,6 +254,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return vs.filter(v=>includeHistory===true||v.status===status).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
   }
   async createMembership(data){
+    if(data.provenance?.origin==='ai')throw new Error('Machine output must remain a pending Suggestion');
     const v=createMembership(data),db=await this.open(),tx=db.transaction([MEMBERSHIPS,CONSTELLATIONS,UTTERANCES],'readwrite'),m=tx.objectStore(MEMBERSHIPS),cs=tx.objectStore(CONSTELLATIONS),us=tx.objectStore(UTTERANCES);
     try{
       if(!await result(cs.get(v.constellationId)))throw new Error(`Unknown constellation: ${v.constellationId}`);
@@ -391,6 +389,33 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
 
   async getSchemaVersion(){
     return SCHEMA_VERSION;
+  }
+  async getExportSnapshot(){
+    const db=await this.open();
+    const stores=[UTTERANCES,ARTIFACTS,TRANSCRIPTIONS,RELATIONS,CONSTELLATIONS,MEMBERSHIPS];
+    const tx=db.transaction(stores,'readonly');
+    const exportedAt=new Date().toISOString();
+    const [records]=await Promise.all([
+      Promise.all(stores.map(name=>result(tx.objectStore(name).getAll()))),
+      complete(tx)
+    ]);
+    return {schemaVersion:SCHEMA_VERSION,exportedAt,...Object.fromEntries(stores.map((name,index)=>[name,records[index]]))};
+  }
+  async getLastBackupExport(){
+    const db=await this.open();
+    const record=await result(db.transaction(META).objectStore(META).get('last-backup-export'));
+    return clone(record?.value??null);
+  }
+  async recordBackupExport(receipt){
+    if(!receipt||typeof receipt.filename!=='string'||!receipt.filename.trim())throw new Error('Backup filename is required');
+    for(const field of ['exportedAt','requestedAt']){
+      if(typeof receipt[field]!=='string'||!Number.isFinite(Date.parse(receipt[field])))throw new Error(`Invalid backup ${field}`);
+    }
+    const value={filename:receipt.filename,exportedAt:receipt.exportedAt,requestedAt:receipt.requestedAt};
+    const db=await this.open(),tx=db.transaction(META,'readwrite');
+    tx.objectStore(META).put({key:'last-backup-export',value});
+    await complete(tx);
+    return clone(value);
   }
 }
 export {

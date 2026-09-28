@@ -25,3 +25,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .big-title{font-family:var(--font-display);font-size:clamp(54px,13vw,104px);line-height:.84;letter-spacing:-.055em;font-weight:300;margin:15px 0 42px}
 @media(min-width:760px){.main{padding-left:156px;padding-right:48px;padding-bottom:66px}}
 @media(max-width:759px){.rail{display:none!important}.main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}.big-title{overflow-wrap:anywhere}}
+
+:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}
+.entry-quote,.inspect-quote,.inspect-reading,.gathering-name,.gathering-choice,.small{overflow-wrap:anywhere}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

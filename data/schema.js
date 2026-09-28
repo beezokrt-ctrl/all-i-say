@@ -14,6 +14,8 @@ const string=(value,field,{
 const provenance=(value,field)=>{
   if(!object(value))throw new Error(`${field}.provenance must be an object`);
   string(value.origin,`${field}.provenance.origin`);
+  if(!['author','ai','imported','unknown'].includes(value.origin))throw new Error(`${field}.provenance.origin is invalid`);
+  if(value.origin==='ai')string(value.model,`${field}.provenance.model`);
 };
 export function validateTemporalWindow(value={
 }){

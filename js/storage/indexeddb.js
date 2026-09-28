@@ -376,7 +376,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       if(!await result(utterances.get(toId)))throw new Error(`Unknown utterance: ${toId}`);
       const relation=createRelation({type,fromId,toId,directional,note,provenance:{origin:'author',suggestionId:suggestion.id}});
       const decidedAt=new Date().toISOString();
-      const accepted={...suggestion,status:'accepted',decidedAt,decisionReason:null};
+      const accepted={...suggestion,status:'accepted',decidedAt,decisionReason:null,decisionProvenance:{origin:'author'}};
       validateSuggestion(accepted);
       relations.add(clone(relation));
       suggestions.put(clone(accepted));
@@ -393,7 +393,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       const suggestion=await result(s.get(id));
       if(!suggestion)throw new Error(`Unknown suggestion: ${id}`);
       if(suggestion.status!=='pending')throw new Error(`Suggestion is already ${suggestion.status}`);
-      const rejected={...suggestion,status:'rejected',decidedAt:new Date().toISOString(),decisionReason:reason};
+      const rejected={...suggestion,status:'rejected',decidedAt:new Date().toISOString(),decisionReason:reason,decisionProvenance:{origin:'author'}};
       validateSuggestion(rejected);
       s.put(clone(rejected));
       await complete(tx);

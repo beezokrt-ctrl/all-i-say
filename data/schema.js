@@ -140,6 +140,7 @@ export function validateSuggestion(value){
   string(value.decision.decidedAt,'suggestion.decision.decidedAt');
   provenance(value.decision.provenance,'suggestion.decision');
   if(value.decision.provenance.origin!=='author')throw new Error('suggestion decision must be author provenance');
+  if(value.decision.reason!==null&&value.decision.reason!==undefined)string(value.decision.reason,'suggestion.decision.reason');
   if(value.status==='accepted')string(value.decision.canonicalEntityId,'suggestion.decision.canonicalEntityId');
   if(value.status==='rejected'&&value.decision.canonicalEntityId!==null&&value.decision.canonicalEntityId!==undefined)throw new Error('rejected suggestion cannot name a canonical entity');
   return true;

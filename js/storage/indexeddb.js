@@ -405,7 +405,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       throw error;
     }
   }
-  async rejectSuggestion(id){
+  async rejectSuggestion(id,reason=null){
     const db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
     const done=complete(tx);
     try{
@@ -419,7 +419,8 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
           status:'rejected',
           decidedAt:new Date().toISOString(),
           provenance:{origin:'author'},
-          canonicalEntityId:null
+          canonicalEntityId:null,
+          reason
         }
       });
       suggestions.put(clone(decided));

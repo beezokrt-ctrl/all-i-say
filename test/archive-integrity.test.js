@@ -880,10 +880,12 @@ test('rejecting a proposal records the decision without creating canonical struc
  const from=await repository.createUtterance({id:'u-reject-from',text:'one'});
  const to=await repository.createUtterance({id:'u-reject-to',text:'two'});
  const proposal=await proposeRelation({type:'contradicts',fromId:from.id,toId:to.id},{model:'test-model',confidence:.8,archive:repository});
- const rejected=await repository.rejectSuggestion(proposal.id);
+ const rejected=await repository.rejectSuggestion(proposal.id,'not a relation I assert');
  assert.equal(rejected.status,'rejected');
  assert.equal(rejected.decision.provenance.origin,'author');
  assert.equal(rejected.decision.canonicalEntityId,null);
+ assert.equal(rejected.decision.reason,'not a relation I assert');
+ assert.equal((await repository.getSuggestion(proposal.id)).decision.reason,'not a relation I assert');
  assert.deepEqual(await repository.listRelations({status:undefined}),[]);
 });
 

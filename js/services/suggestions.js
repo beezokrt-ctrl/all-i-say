@@ -11,7 +11,7 @@ export async function acceptRelationSuggestion(id, { archive } = {}) {
   return repository.acceptRelationSuggestion(id);
 }
 
-export async function rejectSuggestion(id, { archive } = {}) {
+export async function rejectSuggestion(id, { archive, reason = null } = {}) {
   const repository=archive || await getArchive();
-  return repository.rejectSuggestion(id);
+  return repository.rejectSuggestion(id,reason);
 }

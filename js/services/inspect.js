@@ -28,6 +28,7 @@ export async function getUtteranceInspection(id, { archive } = {}) {
     interpretations,
     pendingSuggestions:pendingSuggestions.map(suggestion=>({
       suggestion,
+      currentId:id,
       otherUtterance:proposalUtterances.get(suggestion.payload.fromId===id?suggestion.payload.toId:suggestion.payload.fromId)||null
     })),
     ...gatheringState

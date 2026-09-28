@@ -212,6 +212,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async getRelation(id){
+    const db=await this.open();
+    return clone(await result(db.transaction(RELATIONS).objectStore(RELATIONS).get(id)));
+  }
   async listRelations({
     utteranceId,status='active'
   }

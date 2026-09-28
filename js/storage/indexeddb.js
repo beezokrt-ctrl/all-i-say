@@ -377,9 +377,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       const relation=createRelation({
         type,fromId,toId,directional,note,
         provenance:{
-          origin:suggestion.provenance.origin,
-          model:suggestion.provenance.model,
-          confidence:suggestion.provenance.confidence,
+          origin:'author',
           suggestionId:suggestion.id
         }
       });

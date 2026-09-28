@@ -131,7 +131,11 @@ export function validateSuggestion(value){
   provenance(value.provenance,'suggestion');
   if(!['pending','accepted','rejected'].includes(value.status))throw new Error('suggestion.status is invalid');
   if(value.status==='pending'&&value.decidedAt!==null&&value.decidedAt!==undefined)throw new Error('pending suggestion cannot have decidedAt');
-  if(value.status!=='pending')string(value.decidedAt,'suggestion.decidedAt');
+  if(value.status==='pending'&&value.decisionProvenance!==null&&value.decisionProvenance!==undefined)throw new Error('pending suggestion cannot have decisionProvenance');
+  if(value.status!=='pending'){
+    string(value.decidedAt,'suggestion.decidedAt');
+    provenance(value.decisionProvenance,'suggestion.decision');
+  }
   if(value.decisionReason!==null&&value.decisionReason!==undefined)string(value.decisionReason,'suggestion.decisionReason',{empty:true});
   return true;
 }

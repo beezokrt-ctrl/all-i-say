@@ -7,7 +7,7 @@ export async function getPendingRelationProposals(utteranceId, { archive } = {})
   return Promise.all(touching.map(async suggestion=>{
     const {fromId,toId}=suggestion.payload||{};
     const otherId=fromId===utteranceId?toId:fromId;
-    return {suggestion,other:otherId?await repository.getUtterance(otherId):null};
+    return {suggestion,other:otherId?await repository.getUtterance(otherId):null,currentId:utteranceId};
   }));
 }
 

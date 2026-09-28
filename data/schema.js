@@ -130,5 +130,8 @@ export function validateSuggestion(value){
   if(!object(value.payload))throw new Error('suggestion.payload must be an object');
   provenance(value.provenance,'suggestion');
   if(!['pending','accepted','rejected'].includes(value.status))throw new Error('suggestion.status is invalid');
+  if(value.status==='pending'&&value.decidedAt!==null&&value.decidedAt!==undefined)throw new Error('pending suggestion cannot have decidedAt');
+  if(value.status!=='pending')string(value.decidedAt,'suggestion.decidedAt');
+  if(value.decisionReason!==null&&value.decisionReason!==undefined)string(value.decisionReason,'suggestion.decisionReason',{empty:true});
   return true;
 }

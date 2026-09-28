@@ -14,7 +14,7 @@ export async function createAuthorRelation(data) {
   const relation = createRelation({
     ...data,
     id: data.id || makeEntityId('rel'),
-    provenance: { origin: 'author', actorId: 'owner', createdAt: new Date().toISOString() }
+    provenance: { origin: 'author', createdAt: new Date().toISOString() }
   });
   const stored = await archive.createRelation(relation);
   await emit('relation:created', stored);

@@ -75,6 +75,15 @@ export class ArchiveRepository {
   async getSchemaVersion() {
     throw new Error('Not implemented: getSchemaVersion');
   }
+  async getExportSnapshot() {
+    throw new Error('Not implemented: getExportSnapshot');
+  }
+  async getLastBackupExport() {
+    throw new Error('Not implemented: getLastBackupExport');
+  }
+  async recordBackupExport(_receipt) {
+    throw new Error('Not implemented: recordBackupExport');
+  }
   async exportAll() {
     throw new Error('Not implemented: exportAll');
   }

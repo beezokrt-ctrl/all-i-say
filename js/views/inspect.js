@@ -53,6 +53,35 @@ function proposalsMarkup(pendingSuggestions=[]){
   }).join('');
 }
 
+function relationProvenanceLabel(relation,sourceSuggestion){
+  if(relation.provenance?.origin==='author'){
+    if(sourceSuggestion?.provenance?.origin==='ai'){
+      const model=sourceSuggestion.provenance.model ? ' · '+sourceSuggestion.provenance.model : '';
+      return 'author assertion · accepted from machine proposal'+model;
+    }
+    return 'author assertion';
+  }
+  if(relation.provenance?.origin==='ai'){
+    return relation.provenance.model ? 'machine relation · '+relation.provenance.model : 'machine relation';
+  }
+  return relation.provenance?.origin || 'source unknown';
+}
+
+function relationsMarkup(contexts=[],relations=[]){
+  if(contexts.length){
+    return contexts.map(({relation,otherUtterance,currentId,sourceSuggestion})=>{
+      const direction=relation.directional===false
+        ? 'these words ↔ referenced words'
+        : relation.fromId===currentId ? 'these words → referenced words' : 'referenced words → these words';
+      const other=otherUtterance?.text??'[Referenced utterance unavailable]';
+      const status=relation.status==='withdrawn' ? ' · withdrawn' : '';
+      return '<article class="relation-card"><div class="relation-head"><span class="tag">'+escapeHTML(relation.type)+'</span><span class="small">'+escapeHTML(direction+status)+'</span></div><button class="relation-other" type="button" data-entry-id="'+escapeHTML(otherUtterance?.id||'')+'" '+(otherUtterance?'':'disabled')+'>'+escapeHTML(other)+'</button><div class="relation-provenance">'+escapeHTML(relationProvenanceLabel(relation,sourceSuggestion))+'</div></article>';
+    }).join('');
+  }
+  if(relations.length)return relations.map(r=>'<div class="inspect-item"><span class="tag">'+escapeHTML(r.type)+'</span><span class="small">'+escapeHTML(r.fromId)+' → '+escapeHTML(r.toId)+'</span></div>').join('');
+  return '<p class="small">No relations recorded.</p>';
+}
+
 function gatheringsMarkup(gatherings=[]){
   if(!gatherings.length)return '<p class="small gathering-empty">Not yet gathered anywhere.</p>';
   return gatherings.map(({membership,constellation})=>
@@ -69,9 +98,9 @@ function pickerMarkup(available=[]){
 
 export function inspectView(inspection) {
   if (!inspection) return '<section id="inspect" class="panel"><p class="note">This utterance could not be found.</p><button id="inspectBack" class="button-ghost">← Back</button></section>';
-  const { utterance, artifacts, transcriptions, relations = [], gatherings = [], available = [], annotations = [], interpretations = [], pendingSuggestions = [] } = inspection;
+  const { utterance, artifacts, transcriptions, relations = [], relationContexts = [], gatherings = [], available = [], annotations = [], interpretations = [], pendingSuggestions = [] } = inspection;
   const artifactMarkup = artifacts.length ? artifacts.map(artifact => '<div class="inspect-item"><div class="eyebrow">'+escapeHTML(artifact.kind)+' · '+escapeHTML(artifact.mimeType)+'</div><div class="small">'+escapeHTML(artifact.capturedAt || 'Capture time unknown')+'</div></div>').join('') : '<p class="small">No artifact attached.</p>';
   const transcriptionMarkup = transcriptions.length ? transcriptions.map(item => '<div class="inspect-item"><div class="inspect-reading">'+escapeHTML(item.text)+'</div><div class="meta"><span class="tag">'+escapeHTML(item.provenance?.origin || 'unknown')+'</span><span class="tag">'+escapeHTML(item.attestation?.state || 'unreviewed')+'</span><span class="tag">'+escapeHTML(item.createdAt)+'</span></div></div>').join('') : '<p class="small">No transcription recorded.</p>';
-  const relationMarkup = relations.length ? relations.map(r => '<div class="inspect-item"><span class="tag">'+escapeHTML(r.type)+'</span><span class="small">'+escapeHTML(r.fromId)+' → '+escapeHTML(r.toId)+'</span></div>').join('') : '<p class="small">No relations recorded.</p>';
+  const relationMarkup = relationsMarkup(relationContexts,relations);
   return '<section id="inspect" class="panel"><button id="inspectBack" class="button-ghost">← Back</button><div class="inspect-head"><div class="eyebrow">Utterance</div><blockquote class="inspect-quote">'+escapeHTML(utterance.text ?? '[Awaiting transcription]')+'</blockquote><div class="meta"><span class="tag">'+escapeHTML(utterance.temporal?.display || 'Undated')+'</span><span class="tag">'+escapeHTML(utterance.metadata?.status || 'unknown')+'</span><span class="tag">'+escapeHTML(utterance.source?.type || 'unknown')+'</span></div></div><div class="inspect-section gathering-section"><h2>Gathered in</h2><div id="activeGatherings">'+gatheringsMarkup(gatherings)+'</div><div class="gathering-actions"><button id="openConstellationPicker" class="button-ghost" type="button">Gather here →</button><span id="gatheringError" class="small" role="status" aria-live="polite"></span></div>'+pickerMarkup(available)+'</div><div class="inspect-section"><h2>Artifacts</h2>'+artifactMarkup+'</div><div class="inspect-section"><h2>Transcription history</h2>'+transcriptionMarkup+'</div><div class="inspect-section readings-section"><div class="readings-head"><div><h2>Beside these words</h2><p class="small">Later readings remain separate from the utterance.</p></div></div><div id="readingList">'+readingsMarkup(annotations,interpretations)+'</div>'+readingsComposerMarkup()+'</div><div class="inspect-section proposals-section"><h2>Proposals</h2><p class="small proposal-boundary">A machine proposal is not a relation unless you accept it.</p><div id="pendingProposals">'+proposalsMarkup(pendingSuggestions)+'</div><div id="proposalError" class="small" role="status" aria-live="polite"></div></div><div class="inspect-section"><h2>Relations</h2>'+relationMarkup+'</div></section>';
 }

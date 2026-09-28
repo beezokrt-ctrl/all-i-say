@@ -965,6 +965,48 @@ test('proposal review shows direction from the inspected position before accepta
 });
 
 
+test('Inspect resolves declared relations into exact-word context and proposal lineage', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { proposeRelation } = await import('../js/services/ai/aiGateway.js');
+ const { getUtteranceInspection } = await import('../js/services/inspect.js');
+ const repository=new IndexedDBArchiveRepository({name:'relation-context-lineage',indexedDB:new IDBFactory()});
+ const from=await repository.createUtterance({id:'u-context-from',text:'first exact words'});
+ const to=await repository.createUtterance({id:'u-context-to',text:'second exact words'});
+ const proposal=await proposeRelation({type:'develops',fromId:from.id,toId:to.id},{model:'test-model',confidence:.7,archive:repository});
+ const {relation}=await repository.acceptRelationSuggestion(proposal.id);
+ const inspection=await getUtteranceInspection(from.id,{archive:repository});
+ assert.equal(inspection.relationContexts.length,1);
+ assert.equal(inspection.relationContexts[0].relation.id,relation.id);
+ assert.equal(inspection.relationContexts[0].otherUtterance.text,'second exact words');
+ assert.equal(inspection.relationContexts[0].sourceSuggestion.id,proposal.id);
+ assert.equal(inspection.relationContexts[0].sourceSuggestion.provenance.model,'test-model');
+});
+
+test('Inspect renders relation words, direction, and provenance without replacing the utterance', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const current=createUtterance({id:'u-relation-view-current',text:'current exact words'});
+ const other=createUtterance({id:'u-relation-view-other',text:'other exact words'});
+ const relation={
+  id:'rel-view',type:'returns-to',fromId:current.id,toId:other.id,directional:true,status:'active',
+  provenance:{origin:'author',suggestionId:'sug-source'}
+ };
+ const html=inspectView({
+  utterance:current,
+  artifacts:[],transcriptions:[],relations:[relation],gatherings:[],available:[],annotations:[],interpretations:[],pendingSuggestions:[],
+  relationContexts:[{
+   relation,currentId:current.id,otherUtterance:other,
+   sourceSuggestion:{id:'sug-source',provenance:{origin:'ai',model:'test-model'}}
+  }]
+ });
+ assert.match(html,/current exact words/);
+ assert.match(html,/other exact words/);
+ assert.match(html,/these words → referenced words/);
+ assert.match(html,/author assertion · accepted from machine proposal · test-model/);
+ assert.match(html,/data-entry-id="u-relation-view-other"/);
+});
+
+
 test('proposal direction is visible from either inspected position', async()=>{
  const { inspectView } = await import('../js/views/inspect.js');
  const current=createUtterance({id:'u-direction-current',text:'current position'});

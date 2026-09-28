@@ -46,7 +46,11 @@ function proposalsMarkup(proposals=[]){
     const payload=suggestion.payload||{};
     const model=suggestion.provenance?.model||'machine';
     const otherText=other?.text??'[Referenced utterance unavailable]';
-    return '<article class="proposal-card"><div class="proposal-boundary">Proposal · not a relation</div><div class="proposal-type">'+escapeHTML(payload.type||'develops')+'</div><blockquote class="proposal-other">'+escapeHTML(otherText)+'</blockquote><div class="proposal-meta">'+escapeHTML(model)+'</div><div class="proposal-actions"><button class="button-ghost" type="button" data-accept-suggestion="'+escapeHTML(suggestion.id)+'">Accept as relation</button><button class="proposal-reject" type="button" data-reject-suggestion="'+escapeHTML(suggestion.id)+'">Reject</button></div></article>';
+    const currentId=other?.id===payload.fromId?payload.toId:payload.fromId;
+    const direction=payload.directional===false
+      ? 'these words ↔ referenced words'
+      : payload.fromId===currentId ? 'these words → referenced words' : 'referenced words → these words';
+    return '<article class="proposal-card"><div class="proposal-boundary">Proposal · not a relation</div><div class="proposal-type">'+escapeHTML(payload.type||'develops')+'</div><div class="proposal-direction">'+escapeHTML(direction)+'</div><blockquote class="proposal-other">'+escapeHTML(otherText)+'</blockquote><div class="proposal-meta">'+escapeHTML(model)+'</div><div class="proposal-actions"><button class="button-ghost" type="button" data-accept-suggestion="'+escapeHTML(suggestion.id)+'">Accept as relation</button><button class="proposal-reject" type="button" data-reject-suggestion="'+escapeHTML(suggestion.id)+'">Reject</button></div></article>';
   }).join('');
 }
 

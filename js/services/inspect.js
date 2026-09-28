@@ -6,17 +6,21 @@ export async function getUtteranceInspection(id, { archive } = {}) {
   const utterance = await repository.getUtterance(id);
   if (!utterance) return null;
   const artifactIds = utterance.source?.artifactIds || [];
-  const [artifacts, transcriptionGroups, relations, gatheringState] = await Promise.all([
+  const [artifacts, transcriptionGroups, relations, gatheringState, annotations, interpretations] = await Promise.all([
     Promise.all(artifactIds.map(artifactId => repository.getArtifact(artifactId))),
     Promise.all(artifactIds.map(artifactId => repository.listTranscriptions({ artifactId }))),
     Promise.all([repository.listRelations({ utteranceId: id, status: 'active' }), repository.listRelations({ utteranceId: id, status: 'withdrawn' })]).then(([active, withdrawn]) => [...active, ...withdrawn]),
-    getUtteranceGatheringState(id, { archive: repository })
+    getUtteranceGatheringState(id, { archive: repository }),
+    repository.listAnnotations({ targetId: id, targetType: 'utterance' }),
+    repository.listInterpretations({ targetId: id })
   ]);
   return {
     utterance,
     artifacts: artifacts.filter(Boolean),
     transcriptions: transcriptionGroups.flat(),
     relations,
+    annotations,
+    interpretations,
     ...gatheringState
   };
 }

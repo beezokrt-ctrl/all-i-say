@@ -520,6 +520,12 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
         if(!incomingUtterances.has(interpretation.targetId))await requireExisting(UTTERANCES,interpretation.targetId,`Interpretation ${interpretation.id} references missing utterance ${interpretation.targetId}`);
         for(const relationId of interpretation.relationIds||[])if(!incomingRelations.has(relationId))await requireExisting(RELATIONS,relationId,`Interpretation ${interpretation.id} references missing relation ${relationId}`);
       }
+      for(const suggestion of payload.suggestions||[]){
+        const canonicalId=suggestion.decision?.canonicalEntityId;
+        if(suggestion.status==='accepted'&&canonicalId&&!incomingRelations.has(canonicalId)){
+          await requireExisting(RELATIONS,canonicalId,`Accepted suggestion ${suggestion.id} references missing canonical relation ${canonicalId}`);
+        }
+      }
 
       for(const {storeName,value} of planned)tx.objectStore(storeName).add(clone(value));
       keepAlive=false;

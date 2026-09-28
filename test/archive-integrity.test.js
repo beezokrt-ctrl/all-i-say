@@ -728,3 +728,90 @@ test('dangling secondary record aborts the whole repository import', async()=>{
  assert.equal(await repository.getUtterance(utterance.id),undefined);
  assert.deepEqual(await repository.listAnnotations({}),[]);
 });
+
+
+test('Inspect encounters later readings without changing the utterance', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { addAnnotation, addInterpretation } = await import('../js/services/readings.js');
+ const { getUtteranceInspection } = await import('../js/services/inspect.js');
+ const repository=new IndexedDBArchiveRepository({name:'inspect-readings',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-readings-inspect',text:'first light'});
+ await addAnnotation(utterance.id,'said before I had the later words',{archive:repository});
+ await addInterpretation(utterance.id,'I read this differently now',{archive:repository});
+ const inspection=await getUtteranceInspection(utterance.id,{archive:repository});
+ assert.equal(inspection.utterance.text,'first light');
+ assert.equal(inspection.annotations[0].text,'said before I had the later words');
+ assert.equal(inspection.interpretations[0].reading,'I read this differently now');
+ assert.equal(inspection.annotations[0].provenance.origin,'author');
+ assert.equal(inspection.interpretations[0].provenance.origin,'author');
+});
+
+test('Inspect visually names later readings as beside the words', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const html=inspectView({
+  utterance:createUtterance({id:'u-reading-view',text:'the original position'}),
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],
+  annotations:[{id:'ann-view',targetId:'u-reading-view',targetType:'utterance',text:'later context',createdAt:'2026-09-27T20:00:00.000Z',provenance:{origin:'author'}}],
+  interpretations:[{id:'int-view',targetId:'u-reading-view',reading:'later meaning',createdAt:'2026-09-28T20:00:00.000Z',provenance:{origin:'author'},relationIds:[]}]
+ });
+ assert.match(html,/Beside these words/);
+ assert.match(html,/Later readings remain separate from the utterance/);
+ assert.match(html,/later context/);
+ assert.match(html,/later meaning/);
+ assert.match(html,/your later note/);
+ assert.match(html,/This does not alter the utterance above/);
+ assert.match(html,/id="annotationForm"/);
+ assert.match(html,/id="interpretationForm"/);
+ assert.ok(html.indexOf('the original position') < html.indexOf('later context'));
+});
+
+test('bound Inspect forms keep author readings through the actual event shell', async()=>{
+ const previousDocument=globalThis.document;
+ const fields=new Map();
+ globalThis.document={
+  readyState:'complete',
+  querySelector(selector){ return fields.get(selector)||null; },
+  querySelectorAll(){ return []; },
+  addEventListener(){}
+ };
+ try{
+  const { AllISayApp } = await import('../js/app.js');
+  const { getArchive } = await import('../js/services/archive.js');
+  const archive=await getArchive();
+  const utterance=await archive.createUtterance({id:'u-ui-reading',text:'record remains primary'});
+
+  class Root {
+   constructor(){this.listeners=new Map();}
+   addEventListener(type,handler){
+    if(!this.listeners.has(type))this.listeners.set(type,[]);
+    this.listeners.get(type).push(handler);
+   }
+   async dispatch(type,target){
+    const event={target,preventDefault(){this.defaultPrevented=true;},key:null};
+    for(const handler of this.listeners.get(type)||[])await handler(event);
+   }
+  }
+
+  const root=new Root();
+  const app=new AllISayApp(root);
+  app.inspectId=utterance.id;
+  app.refreshInspect=async()=>{};
+  app.bind();
+
+  fields.set('#annotationText',{value:'context from later'});
+  await root.dispatch('submit',{id:'annotationForm',closest(){return null;}});
+  fields.set('#interpretationText',{value:'meaning from later'});
+  await root.dispatch('submit',{id:'interpretationForm',closest(){return null;}});
+
+  const annotations=await archive.listAnnotations({targetId:utterance.id});
+  const interpretations=await archive.listInterpretations({targetId:utterance.id});
+  assert.equal(annotations.at(-1).text,'context from later');
+  assert.equal(interpretations.at(-1).reading,'meaning from later');
+  assert.equal(annotations.at(-1).provenance.origin,'author');
+  assert.equal(interpretations.at(-1).provenance.origin,'author');
+  assert.equal((await archive.getUtterance(utterance.id)).text,'record remains primary');
+ } finally {
+  if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
+ }
+});

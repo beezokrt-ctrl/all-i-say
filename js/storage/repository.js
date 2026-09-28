@@ -1,4 +1,6 @@
 export class ArchiveRepository {
+  // For status-filtered lists, omission uses the normal active/kept/pending
+  // default; an explicit {status: undefined} includes preserved history.
   async open() {
     throw new Error('Not implemented: open');
   }

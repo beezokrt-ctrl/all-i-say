@@ -27,3 +27,11 @@ This is part of the same archive principle used elsewhere: the system should exp
 - Accepted canonical structure keeps a link back to the Suggestion that occasioned it.
 - Proposal direction, model, confidence, and referenced words must be visible before acceptance where relevant.
 - Failure during acceptance must leave the Suggestion pending and create nothing.
+
+## Decision history and source integrity
+
+Inspect retains accepted and rejected relation proposals beside their author decisions, including the decision time and any recorded reason. An accepted proposal links to the author Relation; that Relation links back to the proposal. Withdrawal changes the Relation's current status without undoing its original acceptance.
+
+Import checks the whole accepted pair: endpoints, type, direction, author provenance, canonical entity ID, and reciprocal Suggestion ID. Machine model and confidence stay on the Suggestion. Validation occurs both before import (including dry runs and references already in the archive) and within the atomic write transaction. Inconsistent pairs are rejected, never silently repaired.
+
+Repository lists distinguish an omitted status filter (normal active/kept/pending records) from an explicit undefined status (all preserved history). Export uses the latter. Import preserves Relation withdrawal metadata and Utterance tombstone metadata rather than reconstructing an incomplete history. This changes neither the database layout nor the portable format version.

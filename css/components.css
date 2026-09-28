@@ -192,3 +192,8 @@
 .proposal-reject{min-height:44px;border:0;background:transparent;color:var(--color-text-dim);font:500 10px/1 var(--font-meta);padding:12px}
 .proposal-reject:hover,.proposal-reject:focus-visible{color:var(--color-text);text-decoration:underline;text-underline-offset:4px}
 #proposalError:not(:empty){display:block;margin-top:12px;color:var(--color-text-soft)}
+
+.proposal-decision,.proposal-reason,.proposal-note{margin-top:14px;font:400 11px/1.5 var(--font-meta);color:var(--color-text-soft);white-space:pre-wrap;overflow-wrap:anywhere}
+.proposal-trace{display:block;width:fit-content;margin-top:14px;font:400 11px/1.5 var(--font-meta);color:var(--color-text-soft);text-underline-offset:4px}
+.proposal-card:target,.inspect-item:target{outline:1px solid var(--color-text-dim);outline-offset:5px;scroll-margin-top:100px}
+.proposal-history .proposal-card{background:transparent}

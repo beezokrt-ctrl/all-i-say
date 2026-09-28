@@ -24,7 +24,7 @@ import {
 from '../domain/constellation.js';
 import { createAnnotation } from '../domain/annotation.js';
 import { createInterpretation } from '../domain/interpretation.js';
-import { createSuggestion } from '../domain/suggestion.js';
+import { createSuggestion, validateAcceptedRelation } from '../domain/suggestion.js';
 import {
   validateUtterance, validateTranscription, validateRelation, validateMembership, SCHEMA_VERSION
 }
@@ -124,11 +124,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     const db=await this.open();
     return clone(await result(db.transaction(UTTERANCES).objectStore(UTTERANCES).get(id)));
   }
-  async listUtterances({
-    since,until,form,thread,status='kept',limit=100,cursor
-  }
-  ={
-  }){
+  async listUtterances(filters={}){
+    const {since,until,form,thread,limit=100,cursor}=filters;
+    const status=Object.hasOwn(filters,'status')?filters.status:'kept';
     const db=await this.open(),tx=db.transaction(UTTERANCES,'readonly'),values=[];
     await new Promise((ok,no)=>{
       const r=tx.objectStore(UTTERANCES).index('createdAt').openCursor(null,'prev');r.onsuccess=()=>{
@@ -208,6 +206,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
   }
   async createRelation(data){
     const v=createRelation(data);
+    if(v.provenance.suggestionId)throw new Error('Suggested Relations must be created through author acceptance');
     if(v.provenance.origin==='ai')throw new Error('AI can only propose a relation through a pending Suggestion');
     const db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
     tx.objectStore(RELATIONS).add(clone(v));
@@ -218,11 +217,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     const db=await this.open();
     return clone(await result(db.transaction(RELATIONS).objectStore(RELATIONS).get(id)));
   }
-  async listRelations({
-    utteranceId,status='active'
-  }
-  ={
-  }){
+  async listRelations(filters={}){
+    const {utteranceId}=filters;
+    const status=Object.hasOwn(filters,'status')?filters.status:'active';
     const db=await this.open(),s=db.transaction(RELATIONS).objectStore(RELATIONS);
     let vs;
     if(utteranceId){
@@ -269,11 +266,8 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     const db=await this.open();
     return clone(await result(db.transaction(CONSTELLATIONS).objectStore(CONSTELLATIONS).get(id)));
   }
-  async listConstellations({
-    status='active'
-  }
-  ={
-  }){
+  async listConstellations(filters={}){
+    const status=Object.hasOwn(filters,'status')?filters.status:'active';
     const db=await this.open(),vs=await result(db.transaction(CONSTELLATIONS).objectStore(CONSTELLATIONS).getAll());
     return vs.filter(v=>status===undefined||v.status===status).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
   }
@@ -292,11 +286,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
-  async listMemberships({
-    constellationId,utteranceId,status='active'
-  }
-  ={
-  }){
+  async listMemberships(filters={}){
+    const {constellationId,utteranceId}=filters;
+    const status=Object.hasOwn(filters,'status')?filters.status:'active';
     const db=await this.open(),s=db.transaction(MEMBERSHIPS).objectStore(MEMBERSHIPS);
     let vs;
     if(constellationId)vs=await result(s.index('constellationId').getAll(constellationId));
@@ -360,7 +352,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     const db=await this.open();
     return clone(await result(db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS).get(id)));
   }
-  async listSuggestions({status='pending',kind}={}){
+  async listSuggestions(filters={}){
+    const {kind}=filters;
+    const status=Object.hasOwn(filters,'status')?filters.status:'pending';
     const db=await this.open(),s=db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS);
     let vs=status===undefined?await result(s.getAll()):await result(s.index('status').getAll(status));
     if(kind!==undefined)vs=vs.filter(v=>v.kind===kind);
@@ -395,6 +389,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
           canonicalEntityId:relation.id
         }
       });
+      validateAcceptedRelation(decided,relation);
       relations.add(clone(relation));
       suggestions.put(clone(decided));
       await done;
@@ -523,10 +518,20 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
         if(!incomingUtterances.has(interpretation.targetId))await requireExisting(UTTERANCES,interpretation.targetId,`Interpretation ${interpretation.id} references missing utterance ${interpretation.targetId}`);
         for(const relationId of interpretation.relationIds||[])if(!incomingRelations.has(relationId))await requireExisting(RELATIONS,relationId,`Interpretation ${interpretation.id} references missing relation ${relationId}`);
       }
+      const relationRecords=new Map(payload.relations.map(value=>[value.id,value]));
+      const suggestionRecords=new Map((payload.suggestions||[]).map(value=>[value.id,value]));
       for(const suggestion of payload.suggestions||[]){
-        const canonicalId=suggestion.decision?.canonicalEntityId;
-        if(suggestion.status==='accepted'&&canonicalId&&!incomingRelations.has(canonicalId)){
-          await requireExisting(RELATIONS,canonicalId,`Accepted suggestion ${suggestion.id} references missing canonical relation ${canonicalId}`);
+        if(suggestion.status==='accepted'){
+          const relation=relationRecords.get(suggestion.decision?.canonicalEntityId)
+            || await result(tx.objectStore(RELATIONS).get(suggestion.decision?.canonicalEntityId));
+          validateAcceptedRelation(suggestion,relation);
+        }
+      }
+      for(const relation of payload.relations){
+        if(relation.provenance?.suggestionId){
+          const suggestion=suggestionRecords.get(relation.provenance.suggestionId)
+            || await result(tx.objectStore(SUGGESTIONS).get(relation.provenance.suggestionId));
+          validateAcceptedRelation(suggestion,relation);
         }
       }
 

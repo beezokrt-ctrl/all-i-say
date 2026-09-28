@@ -26,9 +26,9 @@ export class InMemoryArchiveRepository extends ArchiveRepository {
     return clone(this.utterances.get(id));
   }
 
-  async listUtterances({ status = 'kept', limit = Infinity } = {}) {
+  async listUtterances({ status = 'kept', includeHistory = false, limit = Infinity } = {}) {
     return [...this.utterances.values()]
-      .filter(value => status === undefined || value.metadata.status === status)
+      .filter(value => includeHistory === true || value.metadata.status === status)
       .slice(0, limit)
       .map(clone);
   }

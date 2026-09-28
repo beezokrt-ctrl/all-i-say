@@ -1,4 +1,7 @@
 export class ArchiveRepository {
+  // Status-filtered lists use their normal kept/active defaults, even when
+  // status is undefined. includeHistory: true explicitly bypasses only the
+  // status filter; other filters and limits still apply.
   async open() {
     throw new Error('Not implemented: open');
   }

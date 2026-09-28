@@ -35,6 +35,9 @@ export function validateUtterance(value){
     nullable:awaiting,empty:awaiting
   });
   string(value.createdAt,'utterance.createdAt');
+  for(const field of ['deletedAt','deletionReason']){
+    if(value[field]!==undefined)string(value[field],`utterance.${field}`,{nullable:true,empty:true});
+  }
   validateTemporalWindow(value.temporal||{
   });
   if(value.source!==undefined&&!object(value.source))throw new Error('utterance.source must be an object');
@@ -89,6 +92,9 @@ export function validateRelation(value){
   string(value.toId,'relation.toId');
   if(typeof value.directional!=='boolean')throw new Error('relation.directional must be boolean');
   provenance(value.provenance,'relation');
+  for(const field of ['deletedAt','withdrawalReason']){
+    if(value[field]!==undefined)string(value[field],`relation.${field}`,{nullable:true,empty:true});
+  }
   return true;
 }
 export function validateConstellation(value){

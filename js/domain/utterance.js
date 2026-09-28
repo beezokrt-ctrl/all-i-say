@@ -19,6 +19,8 @@ export function createUtterance(input = {}) {
     id: input.id || makeEntityId('utr'),
     text: input.text === null ? null : String(input.text ?? ''),
     schemaVersion: 3,
+    ...(input.deletedAt !== undefined ? {deletedAt: input.deletedAt} : {}),
+    ...(input.deletionReason !== undefined ? {deletionReason: input.deletionReason} : {}),
     createdAt: input.createdAt || new Date().toISOString(),
     temporal: temporal(input),
     source: {

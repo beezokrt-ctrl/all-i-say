@@ -1023,3 +1023,78 @@ test('proposal direction is visible from either inspected position', async()=>{
  assert.match(html,/referenced words → these words/);
  assert.doesNotMatch(html,/these words → referenced words/);
 });
+
+
+test('direct relation creation cannot point outside the archive', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'relation-endpoint-integrity',indexedDB:new IDBFactory()});
+ const from=await repository.createUtterance({id:'u-relation-endpoint',text:'present'});
+ await assert.rejects(
+  ()=>repository.createRelation({
+   id:'rel-dangling',
+   type:'develops',
+   fromId:from.id,
+   toId:'u-missing-endpoint',
+   provenance:{origin:'author'}
+  }),
+  /Unknown utterance/
+ );
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('Between exposes relation type and direction as an explicit author choice', async()=>{
+ const { bridgeView } = await import('../js/views.js');
+ const a=createUtterance({id:'u-between-a',text:'position A'});
+ const b=createUtterance({id:'u-between-b',text:'position B'});
+ const html=bridgeView(a,b,[],['develops','contradicts']);
+ assert.match(html,/Declare what you see between them/);
+ assert.match(html,/Nothing is inferred from proximity/);
+ assert.match(html,/id="betweenRelationType"/);
+ assert.match(html,/develops/);
+ assert.match(html,/contradicts/);
+ assert.match(html,/A → B/);
+ assert.match(html,/B → A/);
+ assert.match(html,/A ↔ B/);
+});
+
+test('bound Between declaration creates only the direction the author chose', async()=>{
+ const previousDocument=globalThis.document;
+ const fields=new Map();
+ globalThis.document={
+  readyState:'complete',
+  querySelector(selector){return fields.get(selector)||null;},
+  querySelectorAll(){return [];},
+  addEventListener(){}
+ };
+ try{
+  const { AllISayApp } = await import('../js/app.js');
+  const { getArchive } = await import('../js/services/archive.js');
+  const archive=await getArchive();
+  const a=await archive.createUtterance({id:'u-between-ui-a',text:'A'});
+  const b=await archive.createUtterance({id:'u-between-ui-b',text:'B'});
+  fields.set('#betweenA',{value:a.id});
+  fields.set('#betweenB',{value:b.id});
+  fields.set('#betweenRelationType',{value:'responds-to'});
+  fields.set('#betweenRelationDirection',{value:'b-to-a'});
+
+  class Root{
+   constructor(){this.listeners=new Map();}
+   addEventListener(type,handler){if(!this.listeners.has(type))this.listeners.set(type,[]);this.listeners.get(type).push(handler);}
+   async dispatch(type,target){const event={target,preventDefault(){},key:null};for(const handler of this.listeners.get(type)||[])await handler(event);}
+  }
+
+  const root=new Root(),app=new AllISayApp(root);
+  app.renderBetween=async()=>{};
+  app.bind();
+  await root.dispatch('submit',{id:'betweenRelationForm',closest(){return null;}});
+  const relations=(await archive.listRelations({utteranceId:a.id,status:'active'})).filter(r=>r.fromId===b.id&&r.toId===a.id);
+  assert.equal(relations.length,1);
+  assert.equal(relations[0].type,'responds-to');
+  assert.equal(relations[0].directional,true);
+  assert.equal(relations[0].provenance.origin,'author');
+  assert.equal(relations[0].provenance.actorId,undefined);
+ } finally {
+  if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
+ }
+});

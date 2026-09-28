@@ -207,7 +207,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async createRelation(data){
-    const v=createRelation(data),db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
+    const v=createRelation(data);
+    if(v.provenance.origin==='ai')throw new Error('AI can only propose a relation through a pending Suggestion');
+    const db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
     tx.objectStore(RELATIONS).add(clone(v));
     await complete(tx);
     return clone(v);
@@ -347,7 +349,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return vs.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
   }
   async createSuggestion(data){
-    const v=createSuggestion(data),db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
+    const v=createSuggestion(data);
+    if(v.status!=='pending')throw new Error('Suggestions must be created pending; decisions require an explicit author action');
+    const db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
     tx.objectStore(SUGGESTIONS).add(clone(v));
     await complete(tx);
     return clone(v);

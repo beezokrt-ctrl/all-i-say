@@ -41,7 +41,7 @@ export class AllISayApp {
     if (file) {
       const artifact = await createArtifact(file, { kind: file.type.startsWith('audio/') ? 'audio' : 'photo', mimeType: file.type, capturedAt: new Date().toISOString() });
       artifactId = artifact.id;
-      if (transcriptionText) await createTranscription({ artifactId, text: transcriptionText, attestation: { state: 'confirmed-by-author', confirmedAt: new Date().toISOString() }, provenance: { origin: 'author', actorId: 'owner' } });
+      if (transcriptionText) await createTranscription({ artifactId, text: transcriptionText, attestation: { state: 'confirmed-by-author', confirmedAt: new Date().toISOString() }, provenance: { origin: 'author' } });
     }
     const now = new Date();
     const localDay = [now.getFullYear(), String(now.getMonth()+1).padStart(2,'0'), String(now.getDate()).padStart(2,'0')].join('-');

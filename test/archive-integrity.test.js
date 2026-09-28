@@ -832,6 +832,23 @@ test('AI gateway can only leave a pending proposal, never a canonical relation',
  assert.equal(suggestion.provenance.model,'test-model');
  assert.equal(suggestion.decision,null);
  assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+ await assert.rejects(()=>proposeRelation({type:'develops',fromId:from.id,toId:to.id},{model:'test-model',confidence:NaN,archive:repository}),/confidence between 0 and 1/);
+});
+
+test('decided suggestions cannot bypass the author decision transaction', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'proposal-decision-gate',indexedDB:new IDBFactory()});
+ await assert.rejects(()=>repository.createSuggestion({
+  kind:'relation',payload:{fromId:'a',toId:'b',type:'develops'},
+  provenance:{origin:'ai',model:'test-model',confidence:.5},status:'accepted',
+  decision:{status:'accepted',decidedAt:new Date().toISOString(),provenance:{origin:'author'},canonicalEntityId:'rel-fake'}
+ }),/must be created pending/);
+ assert.deepEqual(await repository.listSuggestions({status:undefined}),[]);
+ await assert.rejects(()=>repository.createRelation({
+  type:'develops',fromId:'a',toId:'b',provenance:{origin:'ai',model:'test-model'}
+ }),/AI can only propose a relation/);
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
 });
 
 test('accepting a relation proposal atomically records author decision and canonical provenance', async()=>{
@@ -867,6 +884,21 @@ test('rejecting a proposal records the decision without creating canonical struc
  assert.equal(rejected.status,'rejected');
  assert.equal(rejected.decision.provenance.origin,'author');
  assert.equal(rejected.decision.canonicalEntityId,null);
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('failed proposal acceptance leaves the proposal pending and creates no relation', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'proposal-atomic-failure',indexedDB:new IDBFactory()});
+ const first=await repository.createUtterance({id:'u-proposal-present',text:'present'});
+ const suggestion=await repository.createSuggestion({
+  id:'sug-dangling-relation',kind:'relation',
+  payload:{fromId:first.id,toId:'u-proposal-missing',type:'develops'},
+  provenance:{origin:'ai',model:'test-model',confidence:.5}
+ });
+ await assert.rejects(()=>repository.acceptRelationSuggestion(suggestion.id),/references missing utterance/);
+ assert.equal((await repository.getSuggestion(suggestion.id)).status,'pending');
  assert.deepEqual(await repository.listRelations({status:undefined}),[]);
 });
 

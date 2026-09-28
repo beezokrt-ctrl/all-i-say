@@ -39,6 +39,9 @@ export class ArchiveRepository {
   async createRelation(_data) {
     throw new Error('Not implemented: createRelation');
   }
+  async getRelation(_id) {
+    throw new Error('Not implemented: getRelation');
+  }
   async listRelations(_filters = {
   }) {
     throw new Error('Not implemented: listRelations');

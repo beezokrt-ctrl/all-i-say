@@ -703,3 +703,28 @@ test('portable format 4 validates secondary records and older formats default th
  assert.equal(current.interpretations.length,1);
  assert.equal(current.suggestions.length,1);
 });
+
+
+test('dangling secondary record aborts the whole repository import', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { createAnnotation } = await import('../js/domain/annotation.js');
+ const repository=new IndexedDBArchiveRepository({name:'secondary-import-atomicity',indexedDB:new IDBFactory()});
+ const utterance=createUtterance({id:'u-secondary-import',text:'must not partially land'});
+ const annotation=createAnnotation({
+  id:'ann-dangling-import',
+  targetId:'missing-target',
+  text:'cannot float free',
+  provenance:{origin:'author'}
+ });
+ await assert.rejects(
+  ()=>repository.importAll({
+   utterances:[utterance],
+   artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[],
+   annotations:[annotation],interpretations:[],suggestions:[]
+  }),
+  /missing utterance/
+ );
+ assert.equal(await repository.getUtterance(utterance.id),undefined);
+ assert.deepEqual(await repository.listAnnotations({}),[]);
+});

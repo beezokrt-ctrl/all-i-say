@@ -3,10 +3,13 @@ const {chromium:pw}=require('playwright');
 const fs=require('fs'),path=require('path');
 const root=path.resolve(__dirname,'..');
 const server=require('http').createServer((req,res)=>{
- const file=path.join(root,decodeURIComponent(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));
+ let requested;
+ try{requested=decodeURIComponent(req.url.split('?')[0]);}catch{res.statusCode=400;res.end();return;}
+ const file=path.resolve(root,'.'+(requested==='/'?'/index.html':requested));
+ if(!file.startsWith(root+path.sep)){res.statusCode=403;res.end();return;}
  try{const data=fs.readFileSync(file);res.setHeader('Content-Type',({'.js':'text/javascript','.html':'text/html','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png'})[path.extname(file)]||'application/octet-stream');res.end(data);}catch{res.statusCode=404;res.end();}
 });
-await new Promise(ok=>server.listen(8766,ok));
+await new Promise(ok=>server.listen(8766,'127.0.0.1',ok));
 const browser=await pw.launch({executablePath:process.env.CHROMIUM_PATH,args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage'],headless:true});
 const page=await browser.newPage({viewport:{width:Number(process.env.MOBILE_WIDTH||390),height:844},isMobile:true,hasTouch:true,deviceScaleFactor:3});
 page.on('pageerror',e=>console.log('PAGE ERROR',e.message));

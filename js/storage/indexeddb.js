@@ -110,7 +110,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(await result(db.transaction(UTTERANCES).objectStore(UTTERANCES).get(id)));
   }
   async listUtterances({
-    since,until,form,thread,status='kept',limit=100,cursor
+    since,until,form,thread,status='kept',includeHistory=false,limit=100,cursor
   }
   ={
   }){
@@ -118,7 +118,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await new Promise((ok,no)=>{
       const r=tx.objectStore(UTTERANCES).index('createdAt').openCursor(null,'prev');r.onsuccess=()=>{
         const c=r.result;if(!c||values.length>=limit)return ok();const v=c.value,t=v.temporal||{
-        };if((!cursor||v.createdAt<cursor)&&(!since||!t.latest||t.latest>=since)&&(!until||!t.earliest||t.earliest<=until)&&(status===undefined||v.metadata?.status===status)&&(!form||v.metadata?.form===form)&&(!thread||v.metadata?.threads?.includes(thread)))values.push(clone(v));c.continue();
+        };if((!cursor||v.createdAt<cursor)&&(!since||!t.latest||t.latest>=since)&&(!until||!t.earliest||t.earliest<=until)&&(includeHistory===true||v.metadata?.status===status)&&(!form||v.metadata?.form===form)&&(!thread||v.metadata?.threads?.includes(thread)))values.push(clone(v));c.continue();
       };r.onerror=()=>no(r.error);
     });
     return values;
@@ -198,7 +198,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async listRelations({
-    utteranceId,status='active'
+    utteranceId,status='active',includeHistory=false
   }
   ={
   }){
@@ -209,7 +209,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       vs=[...a,...b];
     } else vs=await result(s.getAll());
     const seen=new Set();
-    return vs.filter(v=>!seen.has(v.id)&&seen.add(v.id)&&(status===undefined||v.status===status)).map(clone);
+    return vs.filter(v=>!seen.has(v.id)&&seen.add(v.id)&&(includeHistory===true||v.status===status)).map(clone);
   }
   async withdrawRelation(id,reason=null){
     const db=await this.open(),tx=db.transaction(RELATIONS,'readwrite'),s=tx.objectStore(RELATIONS),cur=await result(s.get(id));
@@ -249,12 +249,12 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(await result(db.transaction(CONSTELLATIONS).objectStore(CONSTELLATIONS).get(id)));
   }
   async listConstellations({
-    status='active'
+    status='active',includeHistory=false
   }
   ={
   }){
     const db=await this.open(),vs=await result(db.transaction(CONSTELLATIONS).objectStore(CONSTELLATIONS).getAll());
-    return vs.filter(v=>status===undefined||v.status===status).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
+    return vs.filter(v=>includeHistory===true||v.status===status).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
   }
   async createMembership(data){
     const v=createMembership(data),db=await this.open(),tx=db.transaction([MEMBERSHIPS,CONSTELLATIONS,UTTERANCES],'readwrite'),m=tx.objectStore(MEMBERSHIPS),cs=tx.objectStore(CONSTELLATIONS),us=tx.objectStore(UTTERANCES);
@@ -272,7 +272,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async listMemberships({
-    constellationId,utteranceId,status='active'
+    constellationId,utteranceId,status='active',includeHistory=false
   }
   ={
   }){
@@ -281,7 +281,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     if(constellationId)vs=await result(s.index('constellationId').getAll(constellationId));
     else if(utteranceId)vs=await result(s.index('utteranceId').getAll(utteranceId));
     else vs=await result(s.getAll());
-    return vs.filter(v=>status===undefined||v.status===status).map(clone);
+    return vs.filter(v=>includeHistory===true||v.status===status).map(clone);
   }
   async withdrawMembership(id,reason=null){
     const db=await this.open(),tx=db.transaction(MEMBERSHIPS,'readwrite'),s=tx.objectStore(MEMBERSHIPS),cur=await result(s.get(id));

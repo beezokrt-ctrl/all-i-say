@@ -16,7 +16,7 @@ export async function backupRepository(repository, timestamp = new Date().toISOS
   const backup = {
     backupAt: timestamp,
     schemaVersion: await repository.getSchemaVersion(),
-    utterances: await repository.listUtterances({ status: undefined, limit: Infinity })
+    utterances: await repository.listUtterances({ includeHistory: true, limit: Infinity })
   };
 
   const key = makeBackupKey(timestamp);

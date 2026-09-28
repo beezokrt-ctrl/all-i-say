@@ -102,6 +102,11 @@ function validateReferences(value,{
     if(!knownUtterances.has(i.targetId))throw new Error(`Interpretation ${i.id} references missing utterance ${i.targetId}`);
     for(const relationId of i.relationIds||[])if(!knownRelations.has(relationId))throw new Error(`Interpretation ${i.id} references missing relation ${relationId}`);
   }
+  for(const suggestion of value.suggestions){
+    if(suggestion.status==='accepted'&&!knownRelations.has(suggestion.decision.canonicalEntityId)){
+      throw new Error(`Accepted suggestion ${suggestion.id} references missing canonical relation ${suggestion.decision.canonicalEntityId}`);
+    }
+  }
   return value;
 }
 export function validateImportPayload(payload,known={
@@ -131,6 +136,10 @@ async function existingReferenceIds(repository,value){
   for(const i of value.interpretations){
     if(!incomingUtterances.has(i.targetId))neededUtterances.add(i.targetId);
     for(const relationId of i.relationIds||[])if(!incomingRelations.has(relationId))neededRelations.add(relationId);
+  }
+  for(const suggestion of value.suggestions){
+    const canonicalId=suggestion.decision?.canonicalEntityId;
+    if(suggestion.status==='accepted'&&canonicalId&&!incomingRelations.has(canonicalId))neededRelations.add(canonicalId);
   }
   const resolve=async(ids,method)=>{
     const found=[];

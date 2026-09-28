@@ -207,7 +207,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return clone(v);
   }
   async createRelation(data){
-    const v=createRelation(data),db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
+    const v=createRelation(data);
+    if(v.provenance.origin==='ai')throw new Error('AI can only propose a relation through a pending Suggestion');
+    const db=await this.open(),tx=db.transaction(RELATIONS,'readwrite');
     tx.objectStore(RELATIONS).add(clone(v));
     await complete(tx);
     return clone(v);
@@ -347,16 +349,88 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     return vs.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
   }
   async createSuggestion(data){
-    const v=createSuggestion(data),db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
+    const v=createSuggestion(data);
+    if(v.status!=='pending')throw new Error('Suggestions must be created pending; decisions require an explicit author action');
+    const db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
     tx.objectStore(SUGGESTIONS).add(clone(v));
     await complete(tx);
     return clone(v);
+  }
+  async getSuggestion(id){
+    const db=await this.open();
+    return clone(await result(db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS).get(id)));
   }
   async listSuggestions({status='pending',kind}={}){
     const db=await this.open(),s=db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS);
     let vs=status===undefined?await result(s.getAll()):await result(s.index('status').getAll(status));
     if(kind!==undefined)vs=vs.filter(v=>v.kind===kind);
     return vs.map(clone);
+  }
+  async acceptRelationSuggestion(id){
+    const db=await this.open(),tx=db.transaction([SUGGESTIONS,RELATIONS,UTTERANCES],'readwrite');
+    const done=complete(tx);
+    try{
+      const suggestions=tx.objectStore(SUGGESTIONS),relations=tx.objectStore(RELATIONS),utterances=tx.objectStore(UTTERANCES);
+      const suggestion=await result(suggestions.get(id));
+      if(!suggestion)throw new Error(`Unknown suggestion: ${id}`);
+      if(suggestion.status!=='pending')throw new Error(`Suggestion is already ${suggestion.status}`);
+      if(suggestion.kind!=='relation')throw new Error(`Suggestion ${id} is not a relation proposal`);
+      const {fromId,toId,type,directional,note}=suggestion.payload||{};
+      if(!await result(utterances.get(fromId)))throw new Error(`Suggestion ${id} references missing utterance ${fromId}`);
+      if(!await result(utterances.get(toId)))throw new Error(`Suggestion ${id} references missing utterance ${toId}`);
+      const relation=createRelation({
+        type,fromId,toId,directional,note,
+        provenance:{
+          origin:'author',
+          suggestionId:suggestion.id
+        }
+      });
+      const decided=createSuggestion({
+        ...suggestion,
+        status:'accepted',
+        decision:{
+          status:'accepted',
+          decidedAt:new Date().toISOString(),
+          provenance:{origin:'author'},
+          canonicalEntityId:relation.id
+        }
+      });
+      relations.add(clone(relation));
+      suggestions.put(clone(decided));
+      await done;
+      return {suggestion:clone(decided),relation:clone(relation)};
+    }catch(error){
+      try{tx.abort();}catch{}
+      try{await done;}catch{}
+      throw error;
+    }
+  }
+  async rejectSuggestion(id,reason=null){
+    const db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
+    const done=complete(tx);
+    try{
+      const suggestions=tx.objectStore(SUGGESTIONS),suggestion=await result(suggestions.get(id));
+      if(!suggestion)throw new Error(`Unknown suggestion: ${id}`);
+      if(suggestion.status!=='pending')throw new Error(`Suggestion is already ${suggestion.status}`);
+      const decided=createSuggestion({
+        ...suggestion,
+        status:'rejected',
+        decision:{
+          status:'rejected',
+          decidedAt:new Date().toISOString(),
+          provenance:{origin:'author'},
+          canonicalEntityId:null,
+          reason
+        }
+      });
+      suggestions.put(clone(decided));
+      await done;
+      return clone(decided);
+    }catch(error){
+      try{tx.abort();}catch{}
+      try{await done;}catch{}
+      throw error;
+    }
   }
   async importAll(payload,{
     conflict='error'
@@ -448,6 +522,12 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       for(const interpretation of payload.interpretations||[]){
         if(!incomingUtterances.has(interpretation.targetId))await requireExisting(UTTERANCES,interpretation.targetId,`Interpretation ${interpretation.id} references missing utterance ${interpretation.targetId}`);
         for(const relationId of interpretation.relationIds||[])if(!incomingRelations.has(relationId))await requireExisting(RELATIONS,relationId,`Interpretation ${interpretation.id} references missing relation ${relationId}`);
+      }
+      for(const suggestion of payload.suggestions||[]){
+        const canonicalId=suggestion.decision?.canonicalEntityId;
+        if(suggestion.status==='accepted'&&canonicalId&&!incomingRelations.has(canonicalId)){
+          await requireExisting(RELATIONS,canonicalId,`Accepted suggestion ${suggestion.id} references missing canonical relation ${canonicalId}`);
+        }
       }
 
       for(const {storeName,value} of planned)tx.objectStore(storeName).add(clone(value));

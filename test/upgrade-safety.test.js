@@ -90,12 +90,12 @@ test('backup failure aborts upgrade and leaves old database version and records 
 });
 
 test('invalid transformed row aborts entire upgrade but retains recovery copy',async()=>{
-  const factory=new IDBFactory();await oldArchive(factory,{...legacy,text:''});
+  const factory=new IDBFactory();await oldArchive(factory,{...legacy,text:42});
   const repository=new IndexedDBArchiveRepository({name:'upgrade-test',indexedDB:factory});
   await assert.rejects(()=>repository.open(),/utterance.text/);
   const db=await result(factory.open('upgrade-test'));
   assert.equal(db.version,3);db.close();
-  assert.equal((await recovery(factory))[0].stores.utterances.values[0].text,'');
+  assert.equal((await recovery(factory))[0].stores.utterances.values[0].text,42);
 });
 
 test('opening the current database neither migrates nor manufactures backups',async()=>{

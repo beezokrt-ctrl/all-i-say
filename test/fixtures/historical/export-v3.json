@@ -1,0 +1,137 @@
+{
+  "exportFormatVersion": 3,
+  "schemaVersion": 4,
+  "exportedAt": "2026-09-28T17:22:16.348Z",
+  "utterances": [
+    {
+      "id": "historical-b",
+      "text": "a later synthetic position",
+      "schemaVersion": 3,
+      "createdAt": "2020-02-01T00:00:00Z",
+      "temporal": {
+        "earliest": null,
+        "latest": null,
+        "precision": "unknown",
+        "display": "around then"
+      },
+      "source": {
+        "type": "typed",
+        "conversationId": null,
+        "context": null,
+        "artifactIds": []
+      },
+      "metadata": {
+        "form": "unknown",
+        "threads": [],
+        "status": "kept"
+      }
+    },
+    {
+      "id": "historical-a",
+      "text": "  synthetic fixture\n  exact spacing  ",
+      "schemaVersion": 3,
+      "createdAt": "2020-01-01T00:00:00Z",
+      "temporal": {
+        "earliest": "2019-05-01",
+        "latest": "2019-05-31",
+        "precision": "month",
+        "display": "May 2019"
+      },
+      "source": {
+        "type": "imported",
+        "conversationId": null,
+        "context": null,
+        "artifactIds": [
+          "historical-photo"
+        ]
+      },
+      "metadata": {
+        "form": "unknown",
+        "threads": [],
+        "status": "kept"
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "historical-photo",
+      "schemaVersion": 3,
+      "kind": "photo",
+      "storageRef": "idb://artifact/pending",
+      "mimeType": "image/png",
+      "capturedAt": "2019-05-03T12:00:00Z",
+      "checksum": null,
+      "data": "data:image/png;base64,AAoNgP8="
+    }
+  ],
+  "transcriptions": [
+    {
+      "id": "historical-transcription",
+      "artifactId": "historical-photo",
+      "utteranceId": null,
+      "text": " a distinct synthetic transcription ",
+      "createdAt": "2020-01-01T00:00:00Z",
+      "provenance": {
+        "origin": "author",
+        "actorId": null,
+        "model": null,
+        "createdAt": "2020-01-01T00:00:00Z"
+      },
+      "attestation": {
+        "state": "unreviewed",
+        "confirmedAt": null,
+        "note": null
+      },
+      "deletedAt": null
+    }
+  ],
+  "relations": [
+    {
+      "id": "historical-relation",
+      "type": "continues",
+      "fromId": "historical-a",
+      "toId": "historical-b",
+      "directional": true,
+      "provenance": {
+        "origin": "author",
+        "confidence": null,
+        "model": null,
+        "createdAt": "2020-02-01T00:00:00Z",
+        "suggestionId": null
+      },
+      "status": "active",
+      "note": null,
+      "deletedAt": null
+    }
+  ],
+  "constellations": [
+    {
+      "id": "historical-place",
+      "name": "Synthetic place",
+      "aliases": [],
+      "description": null,
+      "createdAt": "2020-02-01T00:00:00Z",
+      "status": "active",
+      "provenance": {
+        "origin": "author",
+        "createdAt": "2020-02-01T00:00:00Z"
+      }
+    }
+  ],
+  "memberships": [
+    {
+      "id": "historical-membership",
+      "constellationId": "historical-place",
+      "utteranceId": "historical-a",
+      "createdAt": "2020-02-01T00:00:00Z",
+      "status": "active",
+      "provenance": {
+        "origin": "author",
+        "createdAt": "2020-02-01T00:00:00Z"
+      },
+      "note": null,
+      "withdrawnAt": null,
+      "withdrawalReason": null
+    }
+  ]
+}

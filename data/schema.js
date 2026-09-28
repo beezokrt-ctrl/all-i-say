@@ -32,9 +32,9 @@ export function validateTemporalWindow(value={
 export function validateUtterance(value){
   if(!object(value))throw new Error('Utterance must be an object');
   string(value.id,'utterance.id');
-  const awaiting=value.metadata?.status==='awaiting-transcription';
+  const textOptional=['awaiting-transcription','tombstoned'].includes(value.metadata?.status);
   string(value.text,'utterance.text',{
-    nullable:awaiting,empty:awaiting
+    nullable:textOptional,empty:textOptional
   });
   string(value.createdAt,'utterance.createdAt');
   for(const field of ['deletedAt','deletionReason']){
@@ -52,6 +52,7 @@ export function validateArtifact(value){
   string(value.kind,'artifact.kind');
   string(value.storageRef,'artifact.storageRef');
   string(value.mimeType,'artifact.mimeType');
+  if(value.capturedAt!==undefined)string(value.capturedAt,'artifact.capturedAt',{nullable:true});
   return true;
 }
 export function validateTranscription(value){
@@ -62,6 +63,7 @@ export function validateTranscription(value){
     empty:true
   });
   string(value.createdAt,'transcription.createdAt');
+  if(value.deletedAt!==undefined)string(value.deletedAt,'transcription.deletedAt',{nullable:true});
   provenance(value.provenance,'transcription');
   if(!object(value.attestation))throw new Error('transcription.attestation must be an object');
   if(!['unreviewed','confirmed-by-author','rejected','withdrawn'].includes(value.attestation.state))throw new Error('transcription.attestation.state is invalid');

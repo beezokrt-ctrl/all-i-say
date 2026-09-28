@@ -607,3 +607,124 @@ test('Suggestions require explicit provenance and AI provenance names its model'
  assert.equal(suggestion.provenance.origin,'ai');
  assert.equal(suggestion.provenance.model,'test-model');
 });
+
+
+test('IndexedDB persists annotations and interpretations beside, not inside, utterances', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'secondary-records',indexedDB:new IDBFactory()});
+ const utterance=await repository.createUtterance({id:'u-secondary',text:'the record stays itself'});
+ const relationTarget=await repository.createUtterance({id:'u-secondary-other',text:'another position'});
+ const relation=await repository.createRelation({
+  id:'rel-secondary',
+  type:'returns-to',
+  fromId:utterance.id,
+  toId:relationTarget.id,
+  provenance:{origin:'author'}
+ });
+ await repository.createAnnotation({
+  id:'ann-secondary',
+  targetId:utterance.id,
+  text:'context beside the words',
+  provenance:{origin:'author'}
+ });
+ await repository.createInterpretation({
+  id:'int-secondary',
+  targetId:utterance.id,
+  reading:'a dated reading of the words',
+  relationIds:[relation.id],
+  provenance:{origin:'author'}
+ });
+ assert.equal((await repository.getUtterance(utterance.id)).text,'the record stays itself');
+ assert.deepEqual((await repository.listAnnotations({targetId:utterance.id})).map(x=>x.id),['ann-secondary']);
+ assert.deepEqual((await repository.listInterpretations({targetId:utterance.id})).map(x=>x.id),['int-secondary']);
+});
+
+test('secondary canonical records cannot point at absent archive evidence', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'secondary-references',indexedDB:new IDBFactory()});
+ await assert.rejects(
+  ()=>repository.createAnnotation({targetId:'missing',text:'note',provenance:{origin:'author'}}),
+  /Unknown utterance/
+ );
+ await assert.rejects(
+  ()=>repository.createInterpretation({targetId:'missing',reading:'reading',provenance:{origin:'author'}}),
+  /Unknown utterance/
+ );
+ const utterance=await repository.createUtterance({id:'u-interpretation-reference',text:'present'});
+ await assert.rejects(
+  ()=>repository.createInterpretation({
+   targetId:utterance.id,
+   reading:'reading',
+   relationIds:['missing-relation'],
+   provenance:{origin:'author'}
+  }),
+  /Unknown relation/
+ );
+});
+
+test('Suggestions persist as pending proposals without becoming canonical records', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const repository=new IndexedDBArchiveRepository({name:'suggestion-store',indexedDB:new IDBFactory()});
+ await repository.createSuggestion({
+  id:'sug-pending',
+  kind:'relation',
+  payload:{fromId:'u-one',toId:'u-two'},
+  provenance:{origin:'ai',model:'test-model'}
+ });
+ const pending=await repository.listSuggestions({status:'pending'});
+ assert.equal(pending.length,1);
+ assert.equal(pending[0].id,'sug-pending');
+ assert.deepEqual(await repository.listRelations({status:undefined}),[]);
+});
+
+test('portable format 4 validates secondary records and older formats default them empty', async()=>{
+ const { validateImportPayload } = await import('../js/storage/import.js');
+ const utterance=createUtterance({id:'u-portable-secondary',text:'portable'});
+ const base={utterances:[utterance],artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[]};
+ const old=validateImportPayload({exportFormatVersion:3,...base});
+ assert.deepEqual(old.annotations,[]);
+ assert.deepEqual(old.interpretations,[]);
+ assert.deepEqual(old.suggestions,[]);
+
+ const { createAnnotation } = await import('../js/domain/annotation.js');
+ const { createInterpretation } = await import('../js/domain/interpretation.js');
+ const { createSuggestion } = await import('../js/domain/suggestion.js');
+ const current=validateImportPayload({
+  exportFormatVersion:4,
+  ...base,
+  annotations:[createAnnotation({id:'ann-portable',targetId:utterance.id,text:'note',provenance:{origin:'author'}})],
+  interpretations:[createInterpretation({id:'int-portable',targetId:utterance.id,reading:'reading',provenance:{origin:'author'}})],
+  suggestions:[createSuggestion({id:'sug-portable',kind:'relation',payload:{},provenance:{origin:'ai',model:'test-model'}})]
+ });
+ assert.equal(current.annotations.length,1);
+ assert.equal(current.interpretations.length,1);
+ assert.equal(current.suggestions.length,1);
+});
+
+
+test('dangling secondary record aborts the whole repository import', async()=>{
+ const { IDBFactory } = await import('fake-indexeddb');
+ const { IndexedDBArchiveRepository } = await import('../js/storage/indexeddb.js');
+ const { createAnnotation } = await import('../js/domain/annotation.js');
+ const repository=new IndexedDBArchiveRepository({name:'secondary-import-atomicity',indexedDB:new IDBFactory()});
+ const utterance=createUtterance({id:'u-secondary-import',text:'must not partially land'});
+ const annotation=createAnnotation({
+  id:'ann-dangling-import',
+  targetId:'missing-target',
+  text:'cannot float free',
+  provenance:{origin:'author'}
+ });
+ await assert.rejects(
+  ()=>repository.importAll({
+   utterances:[utterance],
+   artifacts:[],transcriptions:[],relations:[],constellations:[],memberships:[],
+   annotations:[annotation],interpretations:[],suggestions:[]
+  }),
+  /missing utterance/
+ );
+ assert.equal(await repository.getUtterance(utterance.id),undefined);
+ assert.deepEqual(await repository.listAnnotations({}),[]);
+});

@@ -370,9 +370,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       ['relations',RELATIONS,payload.relations,x=>x],
       ['constellations',CONSTELLATIONS,payload.constellations,x=>x],
       ['memberships',MEMBERSHIPS,payload.memberships,x=>x],
-      ['annotations',ANNOTATIONS,payload.annotations,x=>x],
-      ['interpretations',INTERPRETATIONS,payload.interpretations,x=>x],
-      ['suggestions',SUGGESTIONS,payload.suggestions,x=>x]
+      ['annotations',ANNOTATIONS,payload.annotations||[],x=>x],
+      ['interpretations',INTERPRETATIONS,payload.interpretations||[],x=>x],
+      ['suggestions',SUGGESTIONS,payload.suggestions||[],x=>x]
     ];
     const tx=db.transaction([...specs.map(x=>x[1]),META],'readwrite');
     const done=complete(tx);
@@ -440,12 +440,12 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
           }
         }
       }
-      for(const annotation of payload.annotations){
+      for(const annotation of payload.annotations||[]){
         if(annotation.targetType!=='utterance')throw new Error(`Unsupported annotation targetType: ${annotation.targetType}`);
         if(!incomingUtterances.has(annotation.targetId))await requireExisting(UTTERANCES,annotation.targetId,`Annotation ${annotation.id} references missing utterance ${annotation.targetId}`);
       }
       const incomingRelations=new Set(payload.relations.map(x=>x.id));
-      for(const interpretation of payload.interpretations){
+      for(const interpretation of payload.interpretations||[]){
         if(!incomingUtterances.has(interpretation.targetId))await requireExisting(UTTERANCES,interpretation.targetId,`Interpretation ${interpretation.id} references missing utterance ${interpretation.targetId}`);
         for(const relationId of interpretation.relationIds||[])if(!incomingRelations.has(relationId))await requireExisting(RELATIONS,relationId,`Interpretation ${interpretation.id} references missing relation ${relationId}`);
       }

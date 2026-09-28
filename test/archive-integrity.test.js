@@ -847,8 +847,8 @@ test('accepting a relation proposal atomically records author decision and canon
  assert.equal(suggestion.decision.status,'accepted');
  assert.equal(suggestion.decision.provenance.origin,'author');
  assert.equal(suggestion.decision.canonicalEntityId,relation.id);
- assert.equal(relation.provenance.origin,'ai');
- assert.equal(relation.provenance.model,'test-model');
+ assert.equal(relation.provenance.origin,'author');
+ assert.equal(relation.provenance.model,null);
  assert.equal(relation.provenance.suggestionId,proposal.id);
  assert.equal((await repository.listRelations({status:'active'})).length,1);
  await assert.rejects(()=>repository.acceptRelationSuggestion(proposal.id),/already accepted/);
@@ -887,6 +887,7 @@ test('Inspect keeps pending machine proposals outside Relations until accepted',
     payload:{type:'develops',fromId:'u-proposal-view',toId:'u-other'},
     provenance:{origin:'ai',model:'test-model',confidence:.75}
    },
+   currentId:'u-proposal-view',
    otherUtterance:createUtterance({id:'u-other',text:'another position'})
   }]
  });
@@ -895,6 +896,7 @@ test('Inspect keeps pending machine proposals outside Relations until accepted',
  assert.match(html,/Accept as relation/);
  assert.match(html,/data-reject-suggestion="sug-view"/);
  assert.match(html,/another position/);
+ assert.match(html,/these words → referenced words/);
  const proposalIndex=html.indexOf('Pending machine proposal');
  const relationsIndex=html.lastIndexOf('<h2>Relations</h2>');
  assert.ok(proposalIndex < relationsIndex);
@@ -938,4 +940,26 @@ test('bound proposal decisions require the explicit Inspect action', async()=>{
  } finally {
   if(previousDocument===undefined)delete globalThis.document; else globalThis.document=previousDocument;
  }
+});
+
+
+test('proposal review shows direction from the inspected position before acceptance', async()=>{
+ const { inspectView } = await import('../js/views/inspect.js');
+ const current=createUtterance({id:'u-direction-current',text:'current position'});
+ const other=createUtterance({id:'u-direction-other',text:'earlier position'});
+ const html=inspectView({
+  utterance:current,
+  artifacts:[],transcriptions:[],relations:[],gatherings:[],available:[],annotations:[],interpretations:[],
+  pendingSuggestions:[{
+   suggestion:{
+    id:'sug-direction',kind:'relation',status:'pending',
+    payload:{type:'responds-to',fromId:other.id,toId:current.id,directional:true},
+    provenance:{origin:'ai',model:'test-model',confidence:.66}
+   },
+   currentId:current.id,
+   otherUtterance:other
+  }]
+ });
+ assert.match(html,/referenced words → these words/);
+ assert.doesNotMatch(html,/these words → referenced words/);
 });

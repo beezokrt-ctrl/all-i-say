@@ -23,7 +23,8 @@ export function createRelation(input = {}) {
     },
     status: input.status || 'active',
     note: input.note ?? null,
-    deletedAt: null
+    deletedAt: input.deletedAt ?? null,
+    ...(input.withdrawalReason !== undefined ? {withdrawalReason: input.withdrawalReason} : {})
   };
   validateRelation(value);
   return Object.freeze(value);

@@ -20,7 +20,7 @@ import {
 from '../domain/constellation.js';
 import { createAnnotation } from '../domain/annotation.js';
 import { createInterpretation } from '../domain/interpretation.js';
-import { createSuggestion } from '../domain/suggestion.js';
+import { createSuggestion, validateAcceptedRelation } from '../domain/suggestion.js';
 const decodeDataURL = data => {
   if (!data) return null;
   const match=String(data).match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
@@ -76,14 +76,14 @@ function normalizeImportPayload(payload){
   };
 }
 function validateReferences(value,{
-  utteranceIds=[],artifactIds=[],constellationIds=[],relationIds=[]
+  utteranceIds=[],artifactIds=[],constellationIds=[],relationIds=[],relationRecords=[],suggestionRecords=[]
 }
 ={
 }){
   const knownUtterances=new Set([...utteranceIds,...value.utterances.map(x=>x.id)]);
   const knownArtifacts=new Set([...artifactIds,...value.artifacts.map(x=>x.meta.id)]);
   const knownConstellations=new Set([...constellationIds,...value.constellations.map(x=>x.id)]);
-  const knownRelations=new Set([...relationIds,...value.relations.map(x=>x.id)]);
+  const knownRelations=new Set([...relationIds,...relationRecords.map(x=>x.id),...value.relations.map(x=>x.id)]);
   for(const t of value.transcriptions){
     if(!knownArtifacts.has(t.artifactId))throw new Error(`Transcription ${t.id} references missing artifact ${t.artifactId}`);
     if(t.utteranceId&&!knownUtterances.has(t.utteranceId))throw new Error(`Transcription ${t.id} references missing utterance ${t.utteranceId}`);
@@ -102,10 +102,13 @@ function validateReferences(value,{
     if(!knownUtterances.has(i.targetId))throw new Error(`Interpretation ${i.id} references missing utterance ${i.targetId}`);
     for(const relationId of i.relationIds||[])if(!knownRelations.has(relationId))throw new Error(`Interpretation ${i.id} references missing relation ${relationId}`);
   }
+  const relationsById=new Map([...relationRecords,...value.relations].map(item=>[item.id,item]));
+  const suggestionsById=new Map([...suggestionRecords,...value.suggestions].map(item=>[item.id,item]));
   for(const suggestion of value.suggestions){
-    if(suggestion.status==='accepted'&&!knownRelations.has(suggestion.decision.canonicalEntityId)){
-      throw new Error(`Accepted suggestion ${suggestion.id} references missing canonical relation ${suggestion.decision.canonicalEntityId}`);
-    }
+    if(suggestion.status==='accepted')validateAcceptedRelation(suggestion,relationsById.get(suggestion.decision.canonicalEntityId));
+  }
+  for(const relation of value.relations){
+    if(relation.provenance.suggestionId)validateAcceptedRelation(suggestionsById.get(relation.provenance.suggestionId),relation);
   }
   return value;
 }
@@ -118,12 +121,14 @@ async function existingReferenceIds(repository,value){
   const incomingArtifacts=new Set(value.artifacts.map(x=>x.meta.id));
   const incomingConstellations=new Set(value.constellations.map(x=>x.id));
   const incomingRelations=new Set(value.relations.map(x=>x.id));
-  const neededUtterances=new Set(),neededArtifacts=new Set(),neededConstellations=new Set(),neededRelations=new Set();
+  const incomingSuggestions=new Set(value.suggestions.map(x=>x.id));
+  const neededUtterances=new Set(),neededArtifacts=new Set(),neededConstellations=new Set(),neededRelations=new Set(),neededSuggestions=new Set();
   for(const t of value.transcriptions){
     if(t.utteranceId&&!incomingUtterances.has(t.utteranceId))neededUtterances.add(t.utteranceId);
     if(!incomingArtifacts.has(t.artifactId))neededArtifacts.add(t.artifactId);
   }
   for(const r of value.relations){
+    if(r.provenance.suggestionId&&!incomingSuggestions.has(r.provenance.suggestionId))neededSuggestions.add(r.provenance.suggestionId);
     if(!incomingUtterances.has(r.fromId))neededUtterances.add(r.fromId);
     if(!incomingUtterances.has(r.toId))neededUtterances.add(r.toId);
   }
@@ -145,13 +150,16 @@ async function existingReferenceIds(repository,value){
     const found=[];
     if(typeof repository[method]!=='function')return found;
     await Promise.all([...ids].map(async id=>{
-      if(await repository[method](id))found.push(id);
+      const record=await repository[method](id);
+      if(record)found.push(record);
     }));
     return found;
   };
-  const [utteranceIds,artifactIds,constellationIds,relationIds]=await Promise.all([resolve(neededUtterances,'getUtterance'),resolve(neededArtifacts,'getArtifact'),resolve(neededConstellations,'getConstellation'),resolve(neededRelations,'getRelation')]);
+  const [utterances,artifacts,constellations,relationRecords,suggestionRecords]=await Promise.all([resolve(neededUtterances,'getUtterance'),resolve(neededArtifacts,'getArtifact'),resolve(neededConstellations,'getConstellation'),resolve(neededRelations,'getRelation'),resolve(neededSuggestions,'getSuggestion')]);
   return {
-    utteranceIds,artifactIds,constellationIds,relationIds
+    utteranceIds:utterances.map(x=>x.id),artifactIds:artifacts.map(x=>x.id),
+    constellationIds:constellations.map(x=>x.id),relationIds:relationRecords.map(x=>x.id),
+    relationRecords,suggestionRecords
   };
 }
 export async function importAll(repository,payload,{

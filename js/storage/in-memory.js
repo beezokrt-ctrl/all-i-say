@@ -26,7 +26,9 @@ export class InMemoryArchiveRepository extends ArchiveRepository {
     return clone(this.utterances.get(id));
   }
 
-  async listUtterances({ status = 'kept', limit = Infinity } = {}) {
+  async listUtterances(filters = {}) {
+    const { limit = Infinity } = filters;
+    const status = Object.hasOwn(filters, 'status') ? filters.status : 'kept';
     return [...this.utterances.values()]
       .filter(value => status === undefined || value.metadata.status === status)
       .slice(0, limit)

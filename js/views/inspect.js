@@ -42,11 +42,14 @@ function readingsComposerMarkup(){
 
 function proposalsMarkup(pendingSuggestions=[]){
   if(!pendingSuggestions.length)return '<p class="small proposal-empty">No pending machine proposals.</p>';
-  return pendingSuggestions.map(({suggestion,otherUtterance})=>{
+  return pendingSuggestions.map(({suggestion,otherUtterance,currentId})=>{
     const confidence=typeof suggestion.provenance?.confidence==='number'?Math.round(suggestion.provenance.confidence*100)+'% confidence':'confidence not supplied';
     const model=suggestion.provenance?.model||'model unknown';
     const other=otherUtterance?.text??'[Referenced utterance unavailable]';
-    return '<article class="proposal-card"><div class="proposal-state">Pending machine proposal</div><div class="proposal-relation">'+escapeHTML(suggestion.payload.type)+'</div><blockquote class="proposal-other">'+escapeHTML(other)+'</blockquote><div class="proposal-meta">'+escapeHTML(model)+' · '+escapeHTML(confidence)+'</div><div class="proposal-actions"><button class="button-ghost" type="button" data-accept-suggestion="'+escapeHTML(suggestion.id)+'">Accept as relation</button><button class="proposal-reject" type="button" data-reject-suggestion="'+escapeHTML(suggestion.id)+'">Reject</button></div></article>';
+    const direction=suggestion.payload.directional===false
+      ? 'these words ↔ referenced words'
+      : suggestion.payload.fromId===currentId ? 'these words → referenced words' : 'referenced words → these words';
+    return '<article class="proposal-card"><div class="proposal-state">Pending machine proposal</div><div class="proposal-relation">'+escapeHTML(suggestion.payload.type)+'</div><div class="proposal-direction">'+escapeHTML(direction)+'</div><blockquote class="proposal-other">'+escapeHTML(other)+'</blockquote><div class="proposal-meta">'+escapeHTML(model)+' · '+escapeHTML(confidence)+'</div><div class="proposal-actions"><button class="button-ghost" type="button" data-accept-suggestion="'+escapeHTML(suggestion.id)+'">Accept as relation</button><button class="proposal-reject" type="button" data-reject-suggestion="'+escapeHTML(suggestion.id)+'">Reject</button></div></article>';
   }).join('');
 }
 

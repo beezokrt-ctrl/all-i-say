@@ -22,6 +22,9 @@ import {
   createConstellation, createMembership
 }
 from '../domain/constellation.js';
+import { createAnnotation } from '../domain/annotation.js';
+import { createInterpretation } from '../domain/interpretation.js';
+import { createSuggestion } from '../domain/suggestion.js';
 import {
   validateUtterance, validateTranscription, validateRelation, validateMembership, SCHEMA_VERSION
 }
@@ -30,7 +33,7 @@ import {
   recordsEquivalent, recordsStructurallyEquivalent
 }
 from './conflict.js';
-const DB_VERSION=5, UTTERANCES='utterances', ARTIFACTS='artifacts', TRANSCRIPTIONS='transcriptions', RELATIONS='relations', CONSTELLATIONS='constellations', MEMBERSHIPS='memberships', META='meta';
+const DB_VERSION=6, UTTERANCES='utterances', ARTIFACTS='artifacts', TRANSCRIPTIONS='transcriptions', RELATIONS='relations', CONSTELLATIONS='constellations', MEMBERSHIPS='memberships', ANNOTATIONS='annotations', INTERPRETATIONS='interpretations', SUGGESTIONS='suggestions', META='meta';
 const clone=v=>v===undefined?undefined:structuredClone(v);
 const result=r=>new Promise((ok,no)=>{
   r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error||new Error('IndexedDB request failed'));
@@ -76,6 +79,18 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
           const s=db.createObjectStore(MEMBERSHIPS,{
             keyPath:'id'
           });s.createIndex('constellationId','constellationId');s.createIndex('utteranceId','utteranceId');s.createIndex('status','status');
+        }
+        if(!db.objectStoreNames.contains(ANNOTATIONS)){
+          const s=db.createObjectStore(ANNOTATIONS,{keyPath:'id'});
+          s.createIndex('targetId','targetId');s.createIndex('targetType','targetType');
+        }
+        if(!db.objectStoreNames.contains(INTERPRETATIONS)){
+          const s=db.createObjectStore(INTERPRETATIONS,{keyPath:'id'});
+          s.createIndex('targetId','targetId');
+        }
+        if(!db.objectStoreNames.contains(SUGGESTIONS)){
+          const s=db.createObjectStore(SUGGESTIONS,{keyPath:'id'});
+          s.createIndex('status','status');s.createIndex('kind','kind');
         }
         if(!db.objectStoreNames.contains(META))db.createObjectStore(META,{
           keyPath:'key'
@@ -295,6 +310,50 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async createAnnotation(data){
+    const v=createAnnotation(data),db=await this.open();
+    if(v.targetType!=='utterance')throw new Error(`Unsupported annotation targetType: ${v.targetType}`);
+    const tx=db.transaction([ANNOTATIONS,UTTERANCES],'readwrite');
+    try{
+      if(!await result(tx.objectStore(UTTERANCES).get(v.targetId)))throw new Error(`Unknown utterance: ${v.targetId}`);
+      tx.objectStore(ANNOTATIONS).add(clone(v));
+    } catch(error){ tx.abort(); throw error; }
+    await complete(tx);
+    return clone(v);
+  }
+  async listAnnotations({targetId,targetType}={}){
+    const db=await this.open(),s=db.transaction(ANNOTATIONS).objectStore(ANNOTATIONS);
+    let vs=targetId?await result(s.index('targetId').getAll(targetId)):await result(s.getAll());
+    if(targetType!==undefined)vs=vs.filter(v=>v.targetType===targetType);
+    return vs.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
+  }
+  async createInterpretation(data){
+    const v=createInterpretation(data),db=await this.open(),tx=db.transaction([INTERPRETATIONS,UTTERANCES,RELATIONS],'readwrite');
+    try{
+      if(!await result(tx.objectStore(UTTERANCES).get(v.targetId)))throw new Error(`Unknown utterance: ${v.targetId}`);
+      for(const relationId of v.relationIds||[])if(!await result(tx.objectStore(RELATIONS).get(relationId)))throw new Error(`Unknown relation: ${relationId}`);
+      tx.objectStore(INTERPRETATIONS).add(clone(v));
+    } catch(error){ tx.abort(); throw error; }
+    await complete(tx);
+    return clone(v);
+  }
+  async listInterpretations({targetId}={}){
+    const db=await this.open(),s=db.transaction(INTERPRETATIONS).objectStore(INTERPRETATIONS);
+    const vs=targetId?await result(s.index('targetId').getAll(targetId)):await result(s.getAll());
+    return vs.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).map(clone);
+  }
+  async createSuggestion(data){
+    const v=createSuggestion(data),db=await this.open(),tx=db.transaction(SUGGESTIONS,'readwrite');
+    tx.objectStore(SUGGESTIONS).add(clone(v));
+    await complete(tx);
+    return clone(v);
+  }
+  async listSuggestions({status='pending',kind}={}){
+    const db=await this.open(),s=db.transaction(SUGGESTIONS).objectStore(SUGGESTIONS);
+    let vs=status===undefined?await result(s.getAll()):await result(s.index('status').getAll(status));
+    if(kind!==undefined)vs=vs.filter(v=>v.kind===kind);
+    return vs.map(clone);
+  }
   async importAll(payload,{
     conflict='error'
   } = {}){
@@ -306,7 +365,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       ['transcriptions',TRANSCRIPTIONS,payload.transcriptions,x=>x],
       ['relations',RELATIONS,payload.relations,x=>x],
       ['constellations',CONSTELLATIONS,payload.constellations,x=>x],
-      ['memberships',MEMBERSHIPS,payload.memberships,x=>x]
+      ['memberships',MEMBERSHIPS,payload.memberships,x=>x],
+      ['annotations',ANNOTATIONS,payload.annotations,x=>x],
+      ['interpretations',INTERPRETATIONS,payload.interpretations,x=>x],
+      ['suggestions',SUGGESTIONS,payload.suggestions,x=>x]
     ];
     const tx=db.transaction([...specs.map(x=>x[1]),META],'readwrite');
     const done=complete(tx);
@@ -373,6 +435,15 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
             throw new Error(`Active membership already exists for ${membership.constellationId} / ${membership.utteranceId}`);
           }
         }
+      }
+      for(const annotation of payload.annotations){
+        if(annotation.targetType!=='utterance')throw new Error(`Unsupported annotation targetType: ${annotation.targetType}`);
+        if(!incomingUtterances.has(annotation.targetId))await requireExisting(UTTERANCES,annotation.targetId,`Annotation ${annotation.id} references missing utterance ${annotation.targetId}`);
+      }
+      const incomingRelations=new Set(payload.relations.map(x=>x.id));
+      for(const interpretation of payload.interpretations){
+        if(!incomingUtterances.has(interpretation.targetId))await requireExisting(UTTERANCES,interpretation.targetId,`Interpretation ${interpretation.id} references missing utterance ${interpretation.targetId}`);
+        for(const relationId of interpretation.relationIds||[])if(!incomingRelations.has(relationId))await requireExisting(RELATIONS,relationId,`Interpretation ${interpretation.id} references missing relation ${relationId}`);
       }
 
       for(const {storeName,value} of planned)tx.objectStore(storeName).add(clone(value));

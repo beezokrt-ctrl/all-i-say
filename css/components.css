@@ -184,3 +184,12 @@ button:disabled{cursor:wait;opacity:.6}
 @media(max-width:759px){.gathering-picker{width:100%;max-height:calc(100dvh - max(12px,env(safe-area-inset-top)))}}
 
 .mobile-nav button{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+
+/* A hosting badge must not cover the mobile navigation. Reserve its observed
+   collapsed height only when the host has actually mounted that badge. */
+@media(max-width:759px){
+  body:has(#nl-badge-frame){--host-bottom-space:64px}
+  .mobile-nav{bottom:var(--host-bottom-space,0px)}
+  .mobile-more-menu{bottom:calc(66px + env(safe-area-inset-bottom) + var(--host-bottom-space,0px))}
+  .main{padding-bottom:calc(96px + env(safe-area-inset-bottom) + var(--host-bottom-space,0px))}
+}

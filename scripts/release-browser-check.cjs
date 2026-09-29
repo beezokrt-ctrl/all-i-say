@@ -14,7 +14,7 @@ const browser=await pw.launch({executablePath:process.env.CHROMIUM_PATH,args:['-
 const page=await browser.newPage({viewport:{width:Number(process.env.MOBILE_WIDTH||390),height:844},isMobile:true,hasTouch:true,deviceScaleFactor:3});
 page.on('pageerror',e=>console.log('PAGE ERROR',e.message));
 await page.goto('http://localhost:8766');
-await page.waitForSelector('#backupNow');
+await page.waitForSelector('#archiveCare');
 
 const assert=require('node:assert/strict');
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -34,6 +34,7 @@ assert.match(await page.locator('#feed').textContent(),/Nothing yet/);
 for(const name of ['home','write','drift','between','library','search','places']){
  await route(name);await noOverflow('empty '+name);
 }
+await page.locator('#archiveCare > summary').click();
 await page.locator('#archiveImport').setInputFiles({name:'corrupt.json',mimeType:'application/json',buffer:Buffer.from('{bad')});
 await page.locator('#importBackup').click();
 await page.waitForFunction(()=>document.querySelector('#importMessage').textContent.includes('not valid JSON'));
@@ -63,11 +64,18 @@ assert.equal(await page.evaluate(()=>document.activeElement.hasAttribute('data-e
 for(const name of ['write','drift','between','library','search','places']){
  await route(name);await noOverflow('populated '+name);
 }
-await route('search');
+await page.locator('#archiveCare > summary').click();
+await route('library');
+await page.locator('#libraryMount [data-entry-id]').first().waitFor({state:'visible'});
+assert.ok((await page.locator('#libraryMount [data-entry-id]').first().boundingBox()).y < 430,'Library words start in the first screen');
+if(process.env.LIBRARY_SCREENSHOT_PATH)await page.screenshot({path:process.env.LIBRARY_SCREENSHOT_PATH});
+await page.locator('#libraryMount [data-route="search"]').click();
+await page.waitForSelector('#searchInput');
 await page.locator('#searchInput').fill('no such phrase');
 await page.locator('#searchForm button').click();
 await page.waitForFunction(()=>document.querySelector('#searchMount').textContent.includes('Nothing matches'));
 
+await page.locator('#archiveCare > summary').click();
 const downloadEvent=page.waitForEvent('download');
 await page.locator('#backupNow').click();
 const download=await downloadEvent;
@@ -76,11 +84,12 @@ const exportJSON=JSON.parse(portable);
 assert.equal(exportJSON.utterances[0].text,words);
 const restoreContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true});
 const restorePage=await restoreContext.newPage();
-await restorePage.goto('http://localhost:8766');await restorePage.waitForSelector('#archiveImport');
+await restorePage.goto('http://localhost:8766');await restorePage.waitForSelector('#archiveCare');
+await restorePage.locator('#archiveCare > summary').click();
 await restorePage.locator('#archiveImport').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:portable});
 await restorePage.locator('#importBackup').click();
 await restorePage.waitForFunction(()=>document.querySelector('#importMessage').textContent.includes('Import complete'));
-assert.match(await restorePage.locator('#count').textContent(),/1 positions/);
+assert.match(await restorePage.locator('#count').textContent(),/1 position/);
 await restoreContext.close();
 
 await page.evaluate(async()=>{
@@ -127,8 +136,8 @@ const cdp=await page.context().newCDPSession(page);
 await cdp.send('Network.setCacheDisabled',{cacheDisabled:true});
 await page.context().setOffline(true);
 await page.reload({waitUntil:'domcontentloaded'});
-await page.waitForSelector('#backupNow');
-assert.match(await page.locator('#count').textContent(),/1 positions/);
+await page.waitForSelector('#archiveCare');
+assert.match(await page.locator('#count').textContent(),/1 position/);
 for(const name of ['home','write','drift','between','library','search','places']){
  await route(name);await noOverflow('offline '+name);
 }
@@ -140,7 +149,7 @@ await page.screenshot({path:process.env.SCREENSHOT_PATH||'/tmp/all-i-say-mobile.
 assert.deepEqual(errors,[]);
 const keyboardContext=await browser.newContext({viewport:{width:1280,height:900}});
 const keyboardPage=await keyboardContext.newPage();
-await keyboardPage.goto('http://localhost:8766');await keyboardPage.waitForSelector('#backupNow');
+await keyboardPage.goto('http://localhost:8766');await keyboardPage.waitForSelector('#archiveCare');
 await keyboardPage.keyboard.press('Tab');await keyboardPage.keyboard.press('Tab');await keyboardPage.keyboard.press('Enter');
 await keyboardPage.waitForSelector('#write.is-active');
 for(let i=0;i<30&&await keyboardPage.evaluate(()=>document.activeElement.id)!=='entryText';i++)await keyboardPage.keyboard.press('Tab');

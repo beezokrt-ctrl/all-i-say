@@ -33,6 +33,6 @@ export async function renderLibrary(filters = {}) {
 
   return '<div class="library-view"><header class="library-intro"><div class="eyebrow">Library</div>' +
     '<h2 class="big-title">The whole record.</h2>' +
-    '<p class="hero-copy">Move through what was said. Search when you already know what you are looking for.</p></header>' +
+    '<button class="button-ghost" data-route="search">Search your words</button></header>' +
     '<div class="library-record">' + (record || '<p class="note">Nothing has been kept yet.</p>') + '</div></div>';
 }

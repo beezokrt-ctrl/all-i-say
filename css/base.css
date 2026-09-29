@@ -22,7 +22,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .panel.is-active{display:block}
 .eyebrow{font:500 9px/1.25 var(--font-meta);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text-dim)}
 .small{font:400 11px/1.5 var(--font-meta);color:var(--color-text-dim)}
-.big-title{font-family:var(--font-display);font-size:clamp(54px,13vw,104px);line-height:.84;letter-spacing:-.055em;font-weight:300;margin:15px 0 42px}
+.big-title{font:500 clamp(26px,5vw,42px)/1.2 var(--font-body);letter-spacing:-.035em;margin:12px 0 24px}
 @media(min-width:760px){.main{padding-left:156px;padding-right:48px;padding-bottom:66px}}
 @media(max-width:759px){.rail{display:none!important}.main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}.big-title{overflow-wrap:anywhere}}
 

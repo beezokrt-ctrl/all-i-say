@@ -133,7 +133,7 @@ test('constellation view gathers a position without claiming ownership', async()
  const html=placesView([{constellation:{id:'con-one',name:'Undir Sólu',aliases:[],description:null},count:1,utterances:[]}],[]);
  assert.match(html,/data-constellation-id="con-one"/);
  assert.match(html,/without owning them/);
- assert.match(html,/does not say they belong only here/);
+ assert.match(html,/same words can appear in several places/);
 });
 
 

@@ -1,5 +1,6 @@
+import { bindBetweenChooser } from './between-chooser.js';
 import { mountDurability } from './durability-controls.js';
-import { shellView, feedView, optionView, bridgeView } from './views.js';
+import { shellView, feedView, bridgeView } from './views.js';
 import { getArchive, createUtterance } from './services/archive.js';
 import { createArtifact, createTranscription } from './services/artifacts.js';
 import { renderLibrary } from './views/library.js';
@@ -11,7 +12,7 @@ import { placesView, constellationDetailView, legacyGatheringDetailView } from '
 import { getBetweenData } from './services/between.js';
 
 export class AllISayApp {
-  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.returnScroll = 0; this.driftId = null; this.inspectId = null; this.placesDirty = false; this.placeDetail = null; }
+  constructor(root) { this.root = root; this.entries = []; this.route = 'home'; this.returnRoute = 'home'; this.returnScroll = 0; this.driftId = null; this.inspectId = null; this.placesDirty = false; this.placeDetail = null; this.searchQuery = ''; this.scrollPositions = new Map(); this.searchRevision = 0; this.betweenRevision = 0; }
   async init() {
     const archive = await getArchive();
     const existing = await archive.listUtterances({ status: 'kept', limit: Infinity });
@@ -20,15 +21,31 @@ export class AllISayApp {
   async seed() { return this.loadEntries(); }
   async loadEntries() { const archive = await getArchive(); return archive.listUtterances({ status: 'kept', limit: Infinity }); }
   async refreshFromArchive() { this.entries = await this.loadEntries(); this.refreshDataViews(); }
-  mount() { this.root.innerHTML = shellView(this.entries); this.bind(); this.refreshDataViews(); mountDurability(this.root,{onImported:async()=>{await this.refreshFromArchive();this.navigate(this.route);}}); }
+  mount() { this.root.innerHTML = shellView(this.entries); this.bind(); bindBetweenChooser(this.root,{getEntries:()=>this.entries,onChoose:(slot,id)=>{document.querySelector('#between'+slot).value=id;this.updateBetweenLabels();this.renderBetween();}}); this.refreshDataViews(); mountDurability(this.root,{onImported:async()=>{await this.refreshFromArchive();this.navigate(this.route);}}); }
   bind() {
-    this.root.addEventListener('click', async event => { const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'mobileMore') this.toggleMobileMore(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.id === 'driftInspect' && this.driftId) this.inspect(this.driftId); if (event.target.id === 'inspectBack') { if(this.returnRoute==='places'&&this.placesDirty){await this.renderPlaces();this.placesDirty=false;} this.navigate(this.returnRoute || 'home', { refresh: false, scrollTop: this.returnScroll }); this.returnFocus?.focus({preventScroll:true}); } if(event.target.id==='openConstellationPicker')this.toggleConstellationPicker(true); if(event.target.id==='closeConstellationPicker')this.toggleConstellationPicker(false); const gather=event.target.closest('[data-gather-constellation]'); if(gather)await this.gatherInto(gather.dataset.gatherConstellation); const withdrawal=event.target.closest('[data-withdraw-membership]'); if(withdrawal)await this.withdrawGathering(withdrawal.dataset.withdrawMembership); const constellation=event.target.closest('[data-constellation-id]'); if(constellation)this.renderConstellation(constellation.dataset.constellationId); const legacy=event.target.closest('[data-legacy-place]'); if(legacy)this.renderLegacyPlace(legacy.dataset.legacyPlace); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
+    this.root.addEventListener('click', async event => { if(!event.target.closest('#mobileMore,#mobileMoreMenu'))this.closeMobileMore(); const route = event.target.closest('[data-route]')?.dataset.route; if (route) this.navigate(route); if (event.target.id === 'copyWords') this.copyWords(); if (event.target.id === 'placeBeside') this.placeBeside(); if (event.target.id === 'saveEntry') this.saveEntry(); if (event.target.id === 'mobileMore') this.toggleMobileMore(); if (event.target.id === 'newDrift') this.renderDrift(); if (event.target.id === 'driftInspect' && this.driftId) this.inspect(this.driftId); if (event.target.id === 'inspectBack') { if(this.returnRoute==='places'&&this.placesDirty){await this.renderPlaces();this.placesDirty=false;} this.navigate(this.returnRoute || 'home', { refresh: false, scrollTop: this.returnScroll }); this.returnFocus?.focus({preventScroll:true}); } if(event.target.id==='openConstellationPicker')this.toggleConstellationPicker(true); if(event.target.id==='closeConstellationPicker')this.toggleConstellationPicker(false); const gather=event.target.closest('[data-gather-constellation]'); if(gather)await this.gatherInto(gather.dataset.gatherConstellation); const withdrawal=event.target.closest('[data-withdraw-membership]'); if(withdrawal)await this.withdrawGathering(withdrawal.dataset.withdrawMembership); const constellation=event.target.closest('[data-constellation-id]'); if(constellation)this.renderConstellation(constellation.dataset.constellationId); const legacy=event.target.closest('[data-legacy-place]'); if(legacy)this.renderLegacyPlace(legacy.dataset.legacyPlace); const entry=event.target.closest('[data-entry-id]'); if(entry) this.inspect(entry.dataset.entryId); });
     this.root.addEventListener('submit', async event => { if (event.target.id === 'searchForm') { event.preventDefault(); this.renderSearch(document.querySelector('#searchInput')?.value || ''); } if(event.target.id==='newConstellationForm'){event.preventDefault();await this.startConstellation(document.querySelector('#newConstellationName')?.value||'');} });
-    this.root.addEventListener('input', event => { if(event.target.id==='constellationFilter')this.filterConstellations(event.target.value); });
-    this.root.addEventListener('change', event => { if (event.target.matches('#betweenA,#betweenB')) this.renderBetween(); });
-    this.root.addEventListener('keydown', event => { this.keepPickerFocus(event); const entry=event.target.closest?.('[data-entry-id]'); if(entry && (event.key==='Enter'||event.key===' ')){ event.preventDefault(); this.inspect(entry.dataset.entryId); } if(event.key==='Escape'&&this.route==='inspect'){event.preventDefault();this.toggleConstellationPicker(false);} });
+    this.root.addEventListener('input', event => { if(event.target.id==='searchInput')this.searchQuery=event.target.value; if(event.target.id==='constellationFilter')this.filterConstellations(event.target.value); });
+    this.root.addEventListener('keydown', event => { this.keepPickerFocus(event); if(event.key==='Escape'&&!document.querySelector('#mobileMoreMenu').hidden){this.closeMobileMore();document.querySelector('#mobileMore')?.focus();} const entry=event.target.closest?.('[data-entry-id]'); if(entry && (event.key==='Enter'||event.key===' ')){ event.preventDefault(); this.inspect(entry.dataset.entryId); } if(event.key==='Escape'&&this.route==='inspect'){event.preventDefault();this.toggleConstellationPicker(false);} });
   }
-  navigate(route, { refresh = true, scrollTop = 0 } = {}) { this.route = route; document.querySelectorAll('.panel').forEach(el => el.classList.toggle('is-active', el.id === route)); document.querySelectorAll('.nav-button,.mobile-nav-button').forEach(el => el.classList.toggle('is-active', el.dataset.route === route)); const more=document.querySelector('#mobileMore'); if(more) more.classList.toggle('is-active', route === 'search' || route === 'places'); this.closeMobileMore(); window.scrollTo({ top: scrollTop, behavior: 'instant' }); if (!refresh) return; if (route === 'drift') this.renderDrift(); if (route === 'between') this.renderBetween(); if (route === 'library') this.renderLibrary(); if (route === 'search') this.renderSearch(''); if (route === 'places') this.renderPlaces(); }
+  async navigate(route, { refresh = true, scrollTop } = {}) {
+    this.scrollPositions.set(this.route,window.scrollY);
+    const destination=scrollTop??(route==='inspect'?0:this.scrollPositions.get(route)??0);
+    this.route=route;
+    document.querySelectorAll('.panel').forEach(el=>el.classList.toggle('is-active',el.id===route));
+    document.querySelectorAll('.nav-button,.mobile-nav-button').forEach(el=>el.classList.toggle('is-active',el.dataset.route===route));
+    document.querySelector('#mobileMore')?.classList.toggle('is-active',route==='search'||route==='places');
+    this.closeMobileMore();
+    window.scrollTo({top:destination,behavior:'instant'});
+    if(refresh){
+      if(route==='drift'&&!this.driftId)this.renderDrift();
+      if(route==='between')await this.renderBetween();
+      if(route==='library')await this.renderLibrary();
+      if(route==='search')await this.renderSearch(this.searchQuery);
+      if(route==='places')await this.renderPlaces();
+      if(this.route===route)window.scrollTo({top:destination,behavior:'instant'});
+    }
+  }
   toggleMobileMore(){ const menu=document.querySelector('#mobileMoreMenu'),button=document.querySelector('#mobileMore'); if(!menu||!button)return; const open=menu.hidden; menu.hidden=!open; button.setAttribute('aria-expanded',String(open)); }
   closeMobileMore(){ const menu=document.querySelector('#mobileMoreMenu'),button=document.querySelector('#mobileMore'); if(menu)menu.hidden=true; if(button)button.setAttribute('aria-expanded','false'); }
   async saveEntry(){
@@ -44,7 +61,7 @@ export class AllISayApp {
     const input = document.querySelector('#entryText');
     const file = document.querySelector('#artifactFile')?.files?.[0];
     const transcriptionText = document.querySelector('#artifactTranscription')?.value || '';
-    if (!input?.value.trim() && !file) return;
+    if (!input?.value.trim() && !file) { document.querySelector('#saveMessage').textContent='Write something or attach a file first.'; input?.focus(); return; }
     let artifactId;
     if (file) {
       const artifact = await createArtifact(file, { kind: file.type.startsWith('audio/') ? 'audio' : 'photo', mimeType: file.type, capturedAt: null });
@@ -57,13 +74,32 @@ export class AllISayApp {
     if (input) { input.value = ''; input.blur(); }
     if (document.querySelector('#artifactFile')) document.querySelector('#artifactFile').value = '';
     if (document.querySelector('#artifactTranscription')) document.querySelector('#artifactTranscription').value = '';
-    await this.refreshFromArchive(); this.navigate('home');
+    await this.refreshFromArchive(); this.navigate('home',{scrollTop:0}); document.querySelector('#recordMessage').textContent='Kept in your record.';
   }
-  refreshDataViews() { document.querySelector('#count').textContent = `${this.entries.length} position${this.entries.length === 1 ? '' : 's'}`; document.querySelector('#feed').innerHTML = feedView(this.entries.slice(0,6)); const a = document.querySelector('#betweenA'); const b = document.querySelector('#betweenB'); if (a && b) { a.innerHTML = optionView(this.entries, 0); b.innerHTML = optionView(this.entries, Math.max(0, this.entries.length - 1)); this.renderBetween(); } }
+  refreshDataViews() { document.querySelector('#count').textContent = `${this.entries.length} position${this.entries.length === 1 ? '' : 's'}`; document.querySelector('#feed').innerHTML = feedView(this.entries.slice(0,6)); this.updateBetweenLabels(); }
+  updateBetweenLabels(){
+    for(const [slot,index] of [['A',0],['B',this.entries.length-1]]){
+      const button=document.querySelector('#between'+slot);
+      const entry=this.entries.find(e=>e.id===button.value)||this.entries[index];
+      button.value=entry?.id||'';
+      button.querySelector('.between-preview').textContent=entry?.text??'Choose from your record';
+    }
+  }
+  async copyWords(){
+    const button=document.querySelector('#copyWords'),status=document.querySelector('#inspectActionMessage');
+    button.disabled=true;
+    try{await navigator.clipboard.writeText(this.inspectedText);status.textContent='Exact words copied.';}
+    catch{status.textContent='Could not copy. You can select the words above and copy them.';}
+    finally{button.disabled=false;}
+  }
+  placeBeside(){
+    document.querySelector('#betweenA').value=this.inspectId;
+    this.updateBetweenLabels();this.navigate('between',{scrollTop:0});document.querySelector('#betweenB').click();
+  }
   renderDrift() { if (!this.entries.length){document.querySelector('#driftQuote').textContent='Nothing to encounter yet.';document.querySelector('#driftInspect').hidden=true;return;} const pool=this.entries.length>1?this.entries.filter(e=>e.id!==this.driftId):this.entries; const entry=pool[Math.floor(Math.random()*pool.length)]; this.driftId=entry.id; document.querySelector('#driftQuote').textContent=entry.text??'[Artifact preserved; no canonical utterance text]'; document.querySelector('#driftMeta').textContent=entry.temporal?.display||'Undated'; const inspect=document.querySelector('#driftInspect'); if(inspect) inspect.hidden=false; }
-  async renderBetween() { if (!this.entries.length){document.querySelector('#bridge').textContent='Keep two positions to place them beside one another.';return;} const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value, mount=document.querySelector('#bridge'); if(!aid||!bid||!mount)return; const data=await getBetweenData(aid,bid); mount.innerHTML=bridgeView(data.from,data.to,data.relations); }
+  async renderBetween() { if (!this.entries.length){document.querySelector('#bridge').textContent='Keep two positions to place them beside one another.';return;} const aid=document.querySelector('#betweenA')?.value, bid=document.querySelector('#betweenB')?.value, mount=document.querySelector('#bridge'); if(!aid||!bid||!mount)return; const revision=++this.betweenRevision; const data=await getBetweenData(aid,bid); if(revision!==this.betweenRevision)return; mount.innerHTML=bridgeView(data.from,data.to,data.relations); }
   async renderLibrary(){ const mount=document.querySelector('#libraryMount'); if(mount) mount.innerHTML=await renderLibrary({}); }
-  async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; const results=query?await searchArchive(query):[]; mount.innerHTML=this.searchMarkup(results,query); }
+  async renderSearch(query=''){ const mount=document.querySelector('#searchMount'); if(!mount)return; this.searchQuery=query;const revision=++this.searchRevision;const results=query?await searchArchive(query):[];if(revision!==this.searchRevision)return;mount.innerHTML=this.searchMarkup(results,query); }
   searchMarkup(results,query){ const items=results.map(item=>'<article class="library-item" tabindex="0" data-entry-id="'+this.escape(item.id)+'"><div class="eyebrow">'+this.escape(item.temporal?.display||'Undated')+'</div><blockquote class="entry-quote">'+this.escape(item.text??'[Artifact preserved]')+'</blockquote></article>').join(''); return '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2><form id="searchForm" class="search-form"><input id="searchInput" class="search-input" value="'+this.escape(query)+'" aria-label="Search the record" placeholder="Words, earlier thread, or form"><button class="button-primary">Search</button></form><div class="library-results">'+(query?(items||'<p class="note">Nothing matches those words.</p>'):'<p class="note">Search the record without changing it.</p>')+'</div>'; }
   escape(value){ return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
   async renderPlaces(){ const mount=document.querySelector('#placesMount'); if(!mount)return; const [places,legacy]=await Promise.all([getConstellationPlaces(),getLegacyThreadGatherings()]); this.places=places;this.legacyPlaces=legacy;mount.innerHTML=placesView(places,legacy); if(this.placeDetail?.kind==='constellation')this.renderConstellation(this.placeDetail.id,false); if(this.placeDetail?.kind==='legacy')this.renderLegacyPlace(this.placeDetail.name,false); }
@@ -84,7 +120,7 @@ export class AllISayApp {
   async gatherInto(constellationId){ if(!this.inspectId)return; this.setGatheringError(''); try{await placeUtterance(this.inspectId,constellationId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not gather these words.');} }
   async withdrawGathering(membershipId){ this.setGatheringError(''); try{await withdrawUtteranceMembership(membershipId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not withdraw this placement.');} }
   async startConstellation(name){ if(!this.inspectId)return; this.setGatheringError(''); try{await startConstellationFromUtterance(name,this.inspectId);this.placesDirty=true;await this.refreshInspect();}catch(error){this.setGatheringError(error.message||'Could not start that constellation.');} }
-  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect'){this.returnFocus=document.activeElement;this.returnRoute=this.route;this.returnScroll=window.scrollY;} this.inspectId=id; mount.innerHTML=inspectView(await getUtteranceInspection(id)); this.navigate('inspect'); document.querySelector('#inspectBack')?.focus({preventScroll:true}); }
+  async inspect(id){ const mount=document.querySelector('#inspectMount'); if(!mount)return; if(this.route!=='inspect'){this.returnFocus=document.activeElement;this.returnRoute=this.route;this.returnScroll=window.scrollY;} this.inspectId=id; const inspection=await getUtteranceInspection(id);this.inspectedText=inspection?.utterance.text; mount.innerHTML=inspectView(inspection); this.navigate('inspect'); document.querySelector('#inspectBack')?.focus({preventScroll:true}); }
 }
 
 function boot() {

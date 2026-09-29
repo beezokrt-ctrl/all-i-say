@@ -1,5 +1,5 @@
 // Bump SHELL_VERSION whenever a cached asset changes. See ADR-008.
-const SHELL_VERSION = '2026-09-29.2';
+const SHELL_VERSION = '2026-09-29.3';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.webmanifest',
@@ -11,6 +11,7 @@ const SHELL_ASSETS = [
   './icons/apple-touch-icon.png',
   './data/schema.js',
   './js/app.js',
+  './js/between-chooser.js',
   './js/domain/artifact.js',
   './js/domain/constellation.js',
   './js/domain/ids.js',

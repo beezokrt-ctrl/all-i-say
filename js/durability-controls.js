@@ -52,7 +52,10 @@ export function mountDurability(
         retry.download = next.filename;
         retry.hidden = false;
         message.textContent =
-          "Backup download requested. Check that the file is saved in Files or Downloads; this app cannot confirm the save.";
+          (
+            'Backup download requested. Check that the file is saved in Files or Downloads; this ' +
+            'app cannot confirm the save.'
+          );
         if (next.receiptSaved) lastBackup.textContent = backupAge(next.receipt);
         else message.textContent += " The export time could not be remembered on this device.";
       } catch {

@@ -1,13 +1,18 @@
 import { escapeHTML } from "./views.js";
 
 export function betweenChooserView() {
-  return `<dialog id="betweenChooser" class="word-chooser" aria-labelledby="betweenChooserTitle">
-    <div class="gathering-picker-head"><h2 id="betweenChooserTitle">Choose words</h2><button id="closeBetweenChooser" class="button-ghost">Close</button></div>
-    <label for="betweenFilter" class="gathering-filter-label">Find exact words</label>
-    <input id="betweenFilter" class="search-input" type="search" autocomplete="off" placeholder="Search your record">
-    <p id="betweenResultCount" class="small" role="status"></p><div id="betweenChoices"></div>
-    <button id="moreBetweenChoices" class="button-ghost" hidden>Show more</button>
-  </dialog>`;
+  return (
+    '<dialog id="betweenChooser" class="word-chooser" ' +
+    'aria-labelledby="betweenChooserTitle">\n    <div class="gathering-picker-head">' +
+    '<h2 id="betweenChooserTitle">Choose words</h2>' +
+    '<button id="closeBetweenChooser" class="button-ghost">Close</button></div>' +
+    '\n    <label for="betweenFilter" class="gathering-filter-label">' +
+    'Find exact words</label>\n    <input id="betweenFilter" class="search-input" ' +
+    'type="search" autocomplete="off" placeholder="Search your record">' +
+    '\n    <p id="betweenResultCount" class="small" role="status"></p>' +
+    '<div id="betweenChoices"></div>\n    <button id="moreBetweenChoices" ' +
+    'class="button-ghost" hidden>Show more</button>\n  </dialog>'
+  );
 }
 
 export function bindBetweenChooser(root, { getEntries, onChoose }) {
@@ -25,7 +30,15 @@ export function bindBetweenChooser(root, { getEntries, onChoose }) {
       .slice(0, limit)
       .map(
         (entry) =>
-          `<button class="word-choice" data-between-choice="${escapeHTML(entry.id)}"><span class="small">${escapeHTML(entry.temporal?.display || "Undated")}</span><span class="word-choice-text">${escapeHTML(entry.text ?? "[Artifact preserved]")}</span></button>`,
+          (
+            '<button class="word-choice" data-between-choice="' +
+            `${escapeHTML(entry.id)}` +
+            '"><span class="small">' +
+            `${escapeHTML(entry.temporal?.display || "Undated")}` +
+            '</span><span class="word-choice-text">' +
+            `${escapeHTML(entry.text ?? "[Artifact preserved]")}` +
+            '</span></button>'
+          ),
       )
       .join("");
     root.querySelector("#moreBetweenChoices").hidden = matches.length <= limit;

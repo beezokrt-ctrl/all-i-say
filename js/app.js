@@ -427,9 +427,16 @@ export class AllISayApp {
       )
       .join("");
     return (
-      '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2><form id="searchForm" class="search-form"><input id="searchInput" class="search-input" value="' +
+      (
+        '<div class="eyebrow">Search</div><h2 class="big-title">Find your exact words.</h2>' +
+        '<form id="searchForm" class="search-form"><input id="searchInput" ' +
+        'class="search-input" value="'
+      ) +
       this.escape(query) +
-      '" aria-label="Search the record" placeholder="Words, earlier thread, or form"><button class="button-primary">Search</button></form><div class="library-results">' +
+      (
+        '" aria-label="Search the record" placeholder="Words, earlier thread, or form">' +
+        '<button class="button-primary">Search</button></form><div class="library-results">'
+      ) +
       (query
         ? items || '<p class="note">Nothing matches those words.</p>'
         : '<p class="note">Search the record without changing it.</p>') +
@@ -591,7 +598,11 @@ function boot() {
     .then(() => app.mount())
     .catch(() => {
       root.innerHTML =
-        '<main class="main"><h1>Could not open your archive.</h1><p>Close other All I Say windows, then reload to try again. Your existing records have not been replaced.</p><button id="retryArchive">Try again</button></main>';
+        (
+          '<main class="main"><h1>Could not open your archive.</h1><p>' +
+          'Close other All I Say windows, then reload to try again. Your existing records have ' +
+          'not been replaced.</p><button id="retryArchive">Try again</button></main>'
+        );
       root.querySelector("#retryArchive").addEventListener("click", () => location.reload());
     });
 }

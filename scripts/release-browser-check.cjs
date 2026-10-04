@@ -386,7 +386,11 @@ const { chromium: pw } = require("playwright");
   assert.match(await keyboardPage.locator("#feed").textContent(), /keyboard only words/);
   await keyboardContext.close();
   console.log(
-    "PASS: seven routes plus Inspect; empty/populated/offline reload; exact words; placement; Back focus; corrupt import; zero results; overflow and 200% text; axe WCAG A/AA; download/restore; real IndexedDB upgrade.",
+    (
+      'PASS: seven routes plus Inspect; empty/populated/offline reload; exact words; ' +
+      'placement; Back focus; corrupt import; zero results; overflow and 200% text; axe ' +
+      'WCAG A/AA; download/restore; real IndexedDB upgrade.'
+    ),
   );
   await browser.close();
   server.close();

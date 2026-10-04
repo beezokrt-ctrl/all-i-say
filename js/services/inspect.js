@@ -12,7 +12,10 @@ export async function getUtteranceInspection(id, { archive } = {}) {
     Promise.all([repository.listRelations({ utteranceId: id, status: 'active' }), repository.listRelations({ utteranceId: id, status: 'withdrawn' })]).then(([active, withdrawn]) => [...active, ...withdrawn]),
     getUtteranceGatheringState(id, { archive: repository })
   ]);
+  const relatedIds=[...new Set(relations.map(r=>r.fromId===id?r.toId:r.fromId))];
+  const relatedUtterances=await Promise.all(relatedIds.map(otherId=>repository.getUtterance(otherId)));
   return {
+    relatedUtterances:relatedUtterances.filter(Boolean),
     utterance,
     artifacts: artifacts.filter(Boolean),
     transcriptions: transcriptionGroups.flat(),

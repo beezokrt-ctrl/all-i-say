@@ -215,3 +215,10 @@ button:disabled{cursor:wait;opacity:.6}
  .place-description{display:block;margin-top:10px}
  body:has(#nl-badge-frame)::after{content:"";position:fixed;z-index:29;bottom:0;left:0;right:0;height:64px;background:var(--color-bg)}
 }
+
+.response-composer{padding:24px 0;border-bottom:1px solid var(--color-line)}
+.response-composer summary{cursor:pointer;min-height:44px;font:500 16px/1.5 var(--font-body)}
+.response-text{min-height:180px;font:400 24px/1.35 var(--font-display);resize:vertical}
+.connected-word{padding:20px 0;border-top:1px solid var(--color-line)}
+.connected-word:first-child{border-top:0}
+.connected-open{display:flex;flex-direction:column;gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:12px 0;color:var(--color-text)}

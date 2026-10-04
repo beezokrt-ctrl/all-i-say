@@ -2,6 +2,12 @@
 
 All I Say is a local-first archive of one person's actual words. The record and interpretations of the record are deliberately separate.
 
+## Mission
+
+A recursive way to talk to yourself: say something, return to it, respond, and follow the exchange. Each response is new words linked by an explicitly declared relation; the earlier words remain intact.
+
+In Inspect, open **Respond to these words**, write, choose how the response relates, and **Keep response**. Connected words let you follow the exchange in either direction.
+
 ## Archive invariants
 
 - `Utterance.text` is immutable. A correction is a new utterance plus a relation.

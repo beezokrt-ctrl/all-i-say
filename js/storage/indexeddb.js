@@ -122,6 +122,28 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async createResponse(utteranceData,relationData){
+    if(relationData.provenance?.origin!=='author')throw new Error('A response requires explicit author provenance');
+    if(!['responds-to','continues','returns-to','corrects','contradicts','develops'].includes(relationData.type))throw new Error('Invalid response relation');
+    const utterance=createUtterance(utteranceData);
+    if(utterance.metadata.status!=='kept'||typeof utterance.text!=='string'||!utterance.text.trim())throw new Error('A response requires kept words');
+    const relation=createRelation({...relationData,fromId:utterance.id,directional:true,status:'active'});
+    if(relation.toId===utterance.id)throw new Error('A response must address an existing different utterance');
+    const db=await this.open(),tx=db.transaction([UTTERANCES,RELATIONS],'readwrite');
+    const done=complete(tx);
+    try{
+      const target=await result(tx.objectStore(UTTERANCES).get(relation.toId));
+      if(!target||target.metadata?.status==='tombstoned')throw new Error('These words are unavailable for a new response');
+      tx.objectStore(UTTERANCES).add(clone(utterance));
+      tx.objectStore(RELATIONS).add(clone(relation));
+      await done;
+    }catch(error){
+      try{tx.abort();}catch{}
+      await done.catch(()=>{});
+      throw error;
+    }
+    return {utterance:clone(utterance),relation:clone(relation)};
+  }
   async tombstoneUtterance(id,reason=null){
     const db=await this.open(),tx=db.transaction(UTTERANCES,'readwrite'),s=tx.objectStore(UTTERANCES),cur=await result(s.get(id));
     if(!cur)throw new Error(`Unknown utterance: ${id}`);

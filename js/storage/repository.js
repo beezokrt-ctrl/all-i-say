@@ -15,6 +15,10 @@ export class ArchiveRepository {
   async createUtterance(_data) {
     throw new Error('Not implemented: createUtterance');
   }
+  // Creates new words and their author-declared response relation atomically.
+  async createResponse(_utteranceData, _relationData) {
+    throw new Error('Not implemented: createResponse');
+  }
   async tombstoneUtterance(_id, _reason = null) {
     throw new Error('Not implemented: tombstoneUtterance');
   }

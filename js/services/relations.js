@@ -1,8 +1,16 @@
-import { makeEntityId } from '../domain/ids.js';
-import { createRelation } from '../domain/relation.js';
-import { getArchive, emit } from './archive.js';
+import { makeEntityId } from "../domain/ids.js";
+import { createRelation } from "../domain/relation.js";
+import { getArchive, emit } from "./archive.js";
 
-export const RELATION_OPTIONS = ['corrects', 'returns-to', 'develops', 'contradicts', 'responds-to', 'continues', 'similar-to'];
+export const RELATION_OPTIONS = [
+  "corrects",
+  "returns-to",
+  "develops",
+  "contradicts",
+  "responds-to",
+  "continues",
+  "similar-to",
+];
 
 export async function listRelations(filters = {}) {
   const archive = await getArchive();
@@ -13,10 +21,10 @@ export async function createAuthorRelation(data) {
   const archive = await getArchive();
   const relation = createRelation({
     ...data,
-    id: data.id || makeEntityId('rel'),
-    provenance: { origin: 'author', createdAt: new Date().toISOString() }
+    id: data.id || makeEntityId("rel"),
+    provenance: { origin: "author", createdAt: new Date().toISOString() },
   });
   const stored = await archive.createRelation(relation);
-  await emit('relation:created', stored);
+  await emit("relation:created", stored);
   return stored;
 }

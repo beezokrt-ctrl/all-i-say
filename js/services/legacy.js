@@ -15,7 +15,7 @@ export async function createLegacyUtteranceEntry(input = {}) {
       artifactIds: Array.isArray(input.source?.artifactIds) ? input.source.artifactIds : [],
     },
     metadata: {
-      form: input.kind || "fragment",
+      form: input.kind || "unknown",
       threads: Array.isArray(input.threads) ? input.threads : ["Unplaced"],
       status: "kept",
     },

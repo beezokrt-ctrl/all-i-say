@@ -26,7 +26,7 @@ export async function respondToUtterance(
         display: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
       },
       source: { type: "typed" },
-      metadata: { form: "fragment", status: "kept" },
+      metadata: { form: "unknown", status: "kept" },
     },
     { toId: targetId, type, directional: true, provenance: { ...provenance, createdAt: now.toISOString() } },
   );

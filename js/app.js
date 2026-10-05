@@ -252,7 +252,7 @@ export class AllISayApp {
           },
       source: { type: file ? "imported" : "typed", artifactIds: artifactId ? [artifactId] : [] },
       metadata: {
-        form: "fragment",
+        form: "unknown",
         threads: ["Unplaced"],
         status: input?.value.trim() ? "kept" : "awaiting-transcription",
       },

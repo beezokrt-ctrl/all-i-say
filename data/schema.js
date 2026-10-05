@@ -1,14 +1,14 @@
 export const SCHEMA_VERSION = 4;
 export const DATE_PRECISIONS = ["exact", "day", "month", "year", "unknown", "approximate"];
-export const RELATION_TYPES = [
-  "corrects",
-  "returns-to",
-  "develops",
-  "contradicts",
+export const RESPONSE_TYPES = Object.freeze([
   "responds-to",
   "continues",
-  "similar-to",
-];
+  "returns-to",
+  "corrects",
+  "contradicts",
+  "develops",
+]);
+export const RELATION_TYPES = [...RESPONSE_TYPES, "similar-to"];
 export const FORM_TYPES = ["fragment", "lyric", "fiction", "question", "essay", "note", "correction", "unknown"];
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const string = (value, field, { nullable = false, empty = false } = {}) => {

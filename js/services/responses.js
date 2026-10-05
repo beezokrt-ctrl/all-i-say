@@ -1,6 +1,7 @@
 import { getArchive, emit } from "./archive.js";
 
-export const RESPONSE_TYPES = ["responds-to", "continues", "returns-to", "corrects", "contradicts", "develops"];
+import { RESPONSE_TYPES } from "../../data/schema.js";
+export { RESPONSE_TYPES } from "../../data/schema.js";
 
 export async function respondToUtterance(
   { targetId, text, type = "responds-to", provenance },

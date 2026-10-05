@@ -12,6 +12,7 @@ import {
   validateRelation,
   validateMembership,
   SCHEMA_VERSION,
+  RESPONSE_TYPES,
 } from "../../data/schema.js";
 import { recordsEquivalent, recordsStructurallyEquivalent } from "./conflict.js";
 const DB_VERSION = 5,
@@ -199,7 +200,7 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
   }
   async createResponse(utteranceData, relationData) {
     if (relationData.provenance?.origin !== "author") throw new Error("A response requires explicit author provenance");
-    if (!["responds-to", "continues", "returns-to", "corrects", "contradicts", "develops"].includes(relationData.type))
+    if (!RESPONSE_TYPES.includes(relationData.type))
       throw new Error("Invalid response relation");
     const utterance = createUtterance(utteranceData);
     if (utterance.metadata.status !== "kept" || typeof utterance.text !== "string" || !utterance.text.trim())

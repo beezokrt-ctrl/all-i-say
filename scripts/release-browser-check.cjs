@@ -392,6 +392,9 @@ const { chromium: pw } = require("playwright");
       'WCAG A/AA; download/restore; real IndexedDB upgrade.'
     ),
   );
+  await require('./gate-b-browser.cjs')(
+    browser, 'http://localhost:8766', Number(process.env.MOBILE_WIDTH || 390)
+  );
   await browser.close();
   server.close();
 })().catch((error) => {

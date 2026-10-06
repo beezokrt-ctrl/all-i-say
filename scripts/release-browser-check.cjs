@@ -57,12 +57,19 @@ const { chromium: pw } = require("playwright");
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const route = async (name) => {
+    const oldLibrary = name === "library" ? await page.$("#libraryMount .library-view") : null;
     if (["search", "places"].includes(name)) {
       await page.locator("#mobileMore").click();
       await page.locator('#mobileMoreMenu [data-route="' + name + '"]').click();
     } else await page.locator('.mobile-nav [data-route="' + name + '"]').click();
     await page.waitForSelector("#" + name + ".is-active");
-    if (name === "library") await page.waitForSelector("#libraryMount .library-view");
+    if (name === "library") {
+      if (oldLibrary) {
+        await page.waitForFunction((previous) => !previous.isConnected, oldLibrary);
+        await oldLibrary.dispose();
+      }
+      await page.waitForSelector("#libraryMount .library-view");
+    }
     if (name === "search") await page.waitForSelector("#searchForm");
   };
   const noOverflow = async (label) => {
@@ -117,11 +124,13 @@ const { chromium: pw } = require("playwright");
   }
   await page.locator("#archiveCare > summary").click();
   await route("library");
-  await page.locator("#libraryMount [data-entry-id]").first().waitFor({ state: "visible" });
-  assert.ok(
-    (await page.locator("#libraryMount [data-entry-id]").first().boundingBox()).y < 430,
-    "Library words start in the first screen",
-  );
+  await page.waitForFunction(() => {
+    const card = document.querySelector("#libraryMount [data-entry-id]");
+    if (!card || !card.getClientRects().length) return false;
+    if (getComputedStyle(card).visibility !== "visible") return false;
+    const box = card.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && box.y < 430;
+  }, null, { timeout: 5000 });
   if (process.env.LIBRARY_SCREENSHOT_PATH) await page.screenshot({ path: process.env.LIBRARY_SCREENSHOT_PATH });
   await page.locator('#libraryMount [data-route="search"]').click();
   await page.waitForSelector("#searchInput");

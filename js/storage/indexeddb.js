@@ -272,9 +272,20 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     if (data.provenance?.origin === "ai") throw new Error("Machine output must remain a pending Suggestion");
     const v = createTranscription(data),
       db = await this.open(),
-      tx = db.transaction(TRANSCRIPTIONS, "readwrite");
-    tx.objectStore(TRANSCRIPTIONS).add(clone(v));
-    await complete(tx);
+      tx = db.transaction([TRANSCRIPTIONS, ARTIFACTS, UTTERANCES], "readwrite");
+    const done = complete(tx);
+    try {
+      if (!(await result(tx.objectStore(ARTIFACTS).get(v.artifactId))))
+        throw new Error(`Transcription ${v.id} references missing artifact ${v.artifactId}`);
+      if (v.utteranceId && !(await result(tx.objectStore(UTTERANCES).get(v.utteranceId))))
+        throw new Error(`Transcription ${v.id} references missing utterance ${v.utteranceId}`);
+      tx.objectStore(TRANSCRIPTIONS).add(clone(v));
+      await done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A failed request may already have aborted this transaction. */ }
+      await done.catch(() => {}); // Consume the abort; preserve the original validation or write error.
+      throw error;
+    }
     return clone(v);
   }
   async listTranscriptions({ artifactId, utteranceId } = {}) {
@@ -309,9 +320,20 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     if (data.provenance?.origin === "ai") throw new Error("Machine output must remain a pending Suggestion");
     const v = createRelation(data),
       db = await this.open(),
-      tx = db.transaction(RELATIONS, "readwrite");
-    tx.objectStore(RELATIONS).add(clone(v));
-    await complete(tx);
+      tx = db.transaction([RELATIONS, UTTERANCES], "readwrite");
+    const done = complete(tx);
+    try {
+      for (const id of [v.fromId, v.toId]) {
+        if (!(await result(tx.objectStore(UTTERANCES).get(id))))
+          throw new Error(`Relation ${v.id} references missing utterance ${id}`);
+      }
+      tx.objectStore(RELATIONS).add(clone(v));
+      await done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A failed request may already have aborted this transaction. */ }
+      await done.catch(() => {}); // Consume the abort; preserve the original validation or write error.
+      throw error;
+    }
     return clone(v);
   }
   async listRelations({ utteranceId, status = "active", includeHistory = false } = {}) {

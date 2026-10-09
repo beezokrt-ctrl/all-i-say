@@ -237,7 +237,7 @@ export class AllISayApp {
       source: { type: file ? "imported" : "typed", artifactIds: [] },
       metadata: {
         form: "unknown",
-        threads: ["Unplaced"],
+        threads: [],
         status: input?.value.trim() ? "kept" : "awaiting-transcription",
       },
     };

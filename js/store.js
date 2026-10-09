@@ -15,10 +15,10 @@ export class EntryStore {
   add(entries, input) {
     const entry = {
       id: crypto.randomUUID?.() || `entry-${Date.now()}`,
-      text: input.text.trim(),
+      text: input.text,
       date: input.date || new Date().toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}),
-      threads: input.threads?.length ? input.threads : ['Unplaced'],
-      kind: input.kind || 'statement',
+      threads: Array.isArray(input.threads) ? input.threads : [],
+      kind: input.kind || 'unknown',
       createdAt: new Date().toISOString()
     };
     const next = [...entries, entry];

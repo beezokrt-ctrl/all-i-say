@@ -1,8 +1,8 @@
 import { getArchive } from "./archive.js";
 import { parseLegacyDate } from "../storage/migrations/002_v2_to_v3.js";
 export async function createLegacyUtteranceEntry(input = {}) {
-  const text = String(input.text ?? "").trim();
-  if (!text) throw new Error("A non-empty utterance is required");
+  const text = String(input.text ?? "");
+  if (!text.trim()) throw new Error("A non-empty utterance is required");
   const archive = await getArchive();
   return archive.createUtterance({
     text,
@@ -16,7 +16,7 @@ export async function createLegacyUtteranceEntry(input = {}) {
     },
     metadata: {
       form: input.kind || "unknown",
-      threads: Array.isArray(input.threads) ? input.threads : ["Unplaced"],
+      threads: Array.isArray(input.threads) ? input.threads : [],
       status: "kept",
     },
   });

@@ -36,6 +36,12 @@ const complete = (t) =>
     t.onerror = () => no(t.error || new Error("IndexedDB transaction failed"));
     t.onabort = () => no(t.error || new Error("IndexedDB transaction aborted"));
   });
+async function requireArtifacts(tx, ids) {
+  for (const id of ids) {
+    if (!(await result(tx.objectStore(ARTIFACTS).get(id))))
+      throw new Error(`Utterance references missing artifact ${id}`);
+  }
+}
 export class IndexedDBArchiveRepository extends ArchiveRepository {
   constructor({ name = "all-i-say", indexedDB = globalThis.indexedDB } = {}) {
     super();
@@ -194,9 +200,17 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
   async createUtterance(data) {
     const v = createUtterance(data),
       db = await this.open(),
-      tx = db.transaction(UTTERANCES, "readwrite");
-    tx.objectStore(UTTERANCES).add(clone(v));
-    await complete(tx);
+      tx = db.transaction([UTTERANCES, ARTIFACTS], "readwrite");
+    const done = complete(tx);
+    try {
+      await requireArtifacts(tx, v.source.artifactIds);
+      tx.objectStore(UTTERANCES).add(clone(v));
+      await done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* A failed request may already have aborted the transaction. */ }
+      await done.catch(() => {}); // Preserve the original validation/write error.
+      throw error;
+    }
     return clone(v);
   }
   async createResponse(utteranceData, relationData) {
@@ -209,12 +223,13 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     const relation = createRelation({ ...relationData, fromId: utterance.id, directional: true, status: "active" });
     if (relation.toId === utterance.id) throw new Error("A response must address an existing different utterance");
     const db = await this.open(),
-      tx = db.transaction([UTTERANCES, RELATIONS], "readwrite");
+      tx = db.transaction([UTTERANCES, RELATIONS, ARTIFACTS], "readwrite");
     const done = complete(tx);
     try {
       const target = await result(tx.objectStore(UTTERANCES).get(relation.toId));
       if (!target || target.metadata?.status === "tombstoned")
         throw new Error("These words are unavailable for a new response");
+      await requireArtifacts(tx, utterance.source.artifactIds);
       tx.objectStore(UTTERANCES).add(clone(utterance));
       tx.objectStore(RELATIONS).add(clone(relation));
       await done;

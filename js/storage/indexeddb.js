@@ -13,6 +13,7 @@ import {
   validateMembership,
   SCHEMA_VERSION,
   RESPONSE_TYPES,
+  RELATION_TYPES,
 } from "../../data/schema.js";
 import { recordsEquivalent, recordsStructurallyEquivalent } from "./conflict.js";
 const DB_VERSION = 5,
@@ -319,8 +320,9 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
   }
   async createRelation(data) {
     if (data.provenance?.origin === "ai") throw new Error("Machine output must remain a pending Suggestion");
-    const v = createRelation(data),
-      db = await this.open(),
+    const v = createRelation(data);
+    if (!RELATION_TYPES.includes(v.type)) throw new Error("Invalid relation type");
+    const db = await this.open(),
       tx = db.transaction([RELATIONS, UTTERANCES], "readwrite");
     const done = complete(tx);
     try {

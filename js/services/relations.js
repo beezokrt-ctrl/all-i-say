@@ -2,15 +2,7 @@ import { makeEntityId } from "../domain/ids.js";
 import { createRelation } from "../domain/relation.js";
 import { getArchive, emit } from "./archive.js";
 
-export const RELATION_OPTIONS = [
-  "corrects",
-  "returns-to",
-  "develops",
-  "contradicts",
-  "responds-to",
-  "continues",
-  "similar-to",
-];
+export { RELATION_TYPES as RELATION_OPTIONS } from "../../data/schema.js";
 
 export async function listRelations(filters = {}) {
   const archive = await getArchive();

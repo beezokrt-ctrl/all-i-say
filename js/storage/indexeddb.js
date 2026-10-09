@@ -262,6 +262,37 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
     await complete(tx);
     return clone(v);
   }
+  async createCapture(blob, artifactData, utteranceData, transcriptionData = null) {
+    if (!(blob instanceof Blob)) throw new Error("Artifact storage requires a Blob");
+    if (transcriptionData?.provenance?.origin === "ai")
+      throw new Error("Machine output must remain a pending Suggestion");
+    const artifact = createArtifact({ ...artifactData, storageRef: "idb://artifact/pending" });
+    const utterance = createUtterance({
+      ...utteranceData,
+      source: {
+        ...utteranceData.source,
+        artifactIds: [...(utteranceData.source?.artifactIds || []), artifact.id],
+      },
+    });
+    const transcription = transcriptionData ? createTranscription({
+      ...transcriptionData, artifactId: artifact.id, utteranceId: utterance.id,
+    }) : null;
+    const db = await this.open();
+    const tx = db.transaction([ARTIFACTS, TRANSCRIPTIONS, UTTERANCES], "readwrite");
+    const done = complete(tx);
+    try {
+      await requireArtifacts(tx, utteranceData.source?.artifactIds || []);
+      tx.objectStore(ARTIFACTS).add({ ...artifact, blob });
+      if (transcription) tx.objectStore(TRANSCRIPTIONS).add(clone(transcription));
+      tx.objectStore(UTTERANCES).add(clone(utterance));
+      await done;
+    } catch (error) {
+      try { tx.abort(); } catch { /* The failed request may already have aborted this transaction. */ }
+      await done.catch(() => {}); // Preserve the original write error.
+      throw error;
+    }
+    return { artifact: clone(artifact), utterance: clone(utterance), transcription: clone(transcription) };
+  }
   async createArtifact(blob, meta = {}) {
     if (!(blob instanceof Blob)) throw new Error("Artifact storage requires a Blob");
     const a = createArtifact({

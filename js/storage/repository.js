@@ -22,6 +22,9 @@ export class ArchiveRepository {
   async tombstoneUtterance(_id, _reason = null) {
     throw new Error('Not implemented: tombstoneUtterance');
   }
+  async createCapture(_blob, _artifactData, _utteranceData, _transcriptionData = null) {
+    throw new Error('Not implemented: createCapture');
+  }
   async createArtifact(_blob, _meta = {
   }) {
     throw new Error('Not implemented: createArtifact');

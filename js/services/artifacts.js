@@ -24,3 +24,13 @@ export async function confirmTranscription(id, attestation = {}) {
 }
 
 export { buildArtifact, buildTranscription };
+
+
+export async function createCapture(blob, artifactData, utteranceData, transcriptionData = null) {
+  const archive = await getArchive();
+  const capture = await archive.createCapture(blob, artifactData, utteranceData, transcriptionData);
+  await emit('artifact:created', capture.artifact);
+  if (capture.transcription) await emit('transcription:created', capture.transcription);
+  await emit('utterance:created', capture.utterance);
+  return capture;
+}

@@ -3,7 +3,7 @@ import { bindBetweenChooser } from "./between-chooser.js";
 import { mountDurability } from "./durability-controls.js";
 import { shellView, feedView, bridgeView } from "./views.js";
 import { getArchive, createUtterance } from "./services/archive.js";
-import { createArtifact, createTranscription } from "./services/artifacts.js";
+import { createCapture } from "./services/artifacts.js";
 import { renderLibrary } from "./views/library.js";
 import { getUtteranceInspection } from "./services/inspect.js";
 import { inspectView } from "./views/inspect.js";
@@ -218,29 +218,13 @@ export class AllISayApp {
       input?.focus();
       return;
     }
-    let artifactId;
-    if (file) {
-      const artifact = await createArtifact(file, {
-        kind: file.type.startsWith("audio/") ? "audio" : "photo",
-        mimeType: file.type,
-        capturedAt: null,
-      });
-      artifactId = artifact.id;
-      if (transcriptionText)
-        await createTranscription({
-          artifactId,
-          text: transcriptionText,
-          attestation: { state: "confirmed-by-author", confirmedAt: new Date().toISOString() },
-          provenance: { origin: "author" },
-        });
-    }
     const now = new Date();
     const localDay = [
       now.getFullYear(),
       String(now.getMonth() + 1).padStart(2, "0"),
       String(now.getDate()).padStart(2, "0"),
     ].join("-");
-    await createUtterance({
+    const words = {
       text: input?.value || null,
       temporal: file
         ? { earliest: null, latest: null, precision: "unknown", display: null }
@@ -250,13 +234,24 @@ export class AllISayApp {
             precision: "day",
             display: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
           },
-      source: { type: file ? "imported" : "typed", artifactIds: artifactId ? [artifactId] : [] },
+      source: { type: file ? "imported" : "typed", artifactIds: [] },
       metadata: {
         form: "unknown",
         threads: ["Unplaced"],
         status: input?.value.trim() ? "kept" : "awaiting-transcription",
       },
-    });
+    };
+    if (file) {
+      const transcription = transcriptionText ? {
+        text: transcriptionText,
+        attestation: { state: "confirmed-by-author", confirmedAt: now.toISOString() },
+        provenance: { origin: "author" },
+      } : null;
+      await createCapture(file, {
+        kind: file.type.startsWith("audio/") ? "audio" : "photo",
+        mimeType: file.type, capturedAt: null,
+      }, words, transcription);
+    } else await createUtterance(words);
     if (input) {
       input.value = "";
       input.blur();

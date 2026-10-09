@@ -3,7 +3,7 @@ name: Archive integrity
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, audit-completion]
 
 permissions:
   contents: read

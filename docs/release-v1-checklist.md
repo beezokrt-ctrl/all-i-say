@@ -72,9 +72,20 @@ indicator, Files handoff, app termination, VoiceOver, or Safari eviction behavio
 “Continue” and “Go” do not authorize merging. The author has requested the tag; the incomplete validation gates are why
 it has not been created yet.
 
-## Additional release testing — September 28
+## Current gate status — October 9
 
-Claude review is not a release gate; the author chose to proceed without it. All 73 automated tests pass after
+The later Next Phase Protocol supersedes the September 28 review waiver below.
+Independent review and author phone acceptance remain required. Feature work stays
+frozen until Gates A–C pass. Builder test results alone are not gate sign-off.
+
+See [the audit packet](audit-completion.md) for the integrated candidate, exact
+test claims, failing-first evidence, remaining checks and the next allowed slice.
+The audit branch now triggers the existing Node CI job without opening another
+stacked PR. This does not authorize merging, deployment or a release tag.
+
+## Historical release testing — September 28 (review waiver superseded)
+
+At that time the author chose to proceed without Claude review. That waiver is superseded above. All 73 automated tests pass after
 reproducing and fixing three additional history failures: unknown Artifact capture dates becoming the current time,
 Transcription deletion timestamps being reset during reconstruction, and artifact-only Utterances failing tombstone
 validation.

@@ -410,6 +410,9 @@ const { chromium: pw } = require("playwright");
   await require('./gate-b-browser.cjs')(
     browser, 'http://localhost:8766', Number(process.env.MOBILE_WIDTH || 390)
   );
+  await require('./atomic-capture-browser.cjs')(
+    browser, 'http://localhost:8766', Number(process.env.MOBILE_WIDTH || 390)
+  );
   await browser.close();
   server.close();
 })().catch((error) => {

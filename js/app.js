@@ -256,22 +256,29 @@ export class AllISayApp {
         mimeType: file.type, capturedAt: null,
       }, words, transcription);
     } else await createUtterance(words);
-    const changed = (input?.value || "") !== submittedText ||
-      (transcriptionInput?.value || "") !== transcriptionText || fileInput?.files?.[0] !== file;
-    if (changed) {
-      document.querySelector("#saveMessage").textContent = "Kept in your record.";
+    await this.finishSaySave(input, fileInput, transcriptionInput, {
+      text: submittedText, file, transcriptionText,
+    });
+  }
+  async finishSaySave(input, fileInput, transcriptionInput, submitted) {
+    const changed = (input?.value || "") !== submitted.text ||
+      (transcriptionInput?.value || "") !== submitted.transcriptionText ||
+      fileInput?.files?.[0] !== submitted.file;
+    try {
+      if (!changed) {
+        if (input) { input.value = ""; input.blur(); }
+        if (fileInput) fileInput.value = "";
+        if (transcriptionInput) transcriptionInput.value = "";
+      }
+      const message = document.querySelector("#saveMessage");
+      if (message) message.textContent = "Kept in your record.";
       await this.refreshFromArchive();
-      return;
+      if (changed) return;
+      await this.navigate("home", { scrollTop: 0 });
+      document.querySelector("#recordMessage").textContent = "Kept in your record.";
+    } catch {
+      document.querySelector("#saveMessage").textContent = "Kept in your record. The view could not refresh.";
     }
-    if (input) {
-      input.value = "";
-      input.blur();
-    }
-    if (document.querySelector("#artifactFile")) document.querySelector("#artifactFile").value = "";
-    if (document.querySelector("#artifactTranscription")) document.querySelector("#artifactTranscription").value = "";
-    await this.refreshFromArchive();
-    this.navigate("home", { scrollTop: 0 });
-    document.querySelector("#recordMessage").textContent = "Kept in your record.";
   }
   refreshDataViews() {
     document.querySelector("#count").textContent =

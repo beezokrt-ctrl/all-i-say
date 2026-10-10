@@ -54,3 +54,30 @@ for (const field of ["#entryText", "#artifactTranscription", "#artifactFile"]) {
     }
   });
 }
+
+for (const changed of [false, true]) {
+  test(`Say reports committed words after refresh failure (new input: ${changed})`, async () => {
+    const { nodes, app } = editor();
+    const old = globalThis.document;
+    globalThis.document = { querySelector: (id) => nodes[id] };
+    const archive = await getArchive(), original = archive.createUtterance;
+    const before = (await archive.listUtterances()).length;
+    archive.createUtterance = async function (data) {
+      const saved = await original.call(this, data);
+      if (changed) nodes["#entryText"].value = "Later words";
+      return saved;
+    };
+    app.refreshFromArchive = async () => { throw new Error("refresh failed"); };
+    try {
+      await app.saveEntry();
+      assert.equal((await archive.listUtterances()).length, before + 1);
+      assert.match(nodes["#saveMessage"].textContent, /Kept in your record/);
+      assert.doesNotMatch(nodes["#saveMessage"].textContent, /Try again|Could not/);
+      assert.equal(nodes["#entryText"].value, changed ? "Later words" : "");
+      assert.equal(nodes["#saveEntry"].disabled, false);
+    } finally {
+      archive.createUtterance = original;
+      globalThis.document = old;
+    }
+  });
+}

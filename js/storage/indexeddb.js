@@ -248,6 +248,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       s = tx.objectStore(UTTERANCES),
       cur = await result(s.get(id));
     if (!cur) throw new Error(`Unknown utterance: ${id}`);
+    if (cur.metadata?.status === "tombstoned") {
+      await complete(tx);
+      return clone(cur);
+    }
     const v = {
       ...cur,
       metadata: {
@@ -407,6 +411,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       s = tx.objectStore(RELATIONS),
       cur = await result(s.get(id));
     if (!cur) throw new Error(`Unknown relation: ${id}`);
+    if (cur.status === "withdrawn") {
+      await complete(tx);
+      return clone(cur);
+    }
     const v = {
       ...cur,
       status: "withdrawn",
@@ -498,6 +506,10 @@ export class IndexedDBArchiveRepository extends ArchiveRepository {
       s = tx.objectStore(MEMBERSHIPS),
       cur = await result(s.get(id));
     if (!cur) throw new Error(`Unknown membership: ${id}`);
+    if (cur.status === "withdrawn") {
+      await complete(tx);
+      return clone(cur);
+    }
     const v = {
       ...cur,
       status: "withdrawn",

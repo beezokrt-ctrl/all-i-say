@@ -1,5 +1,5 @@
 // Bump SHELL_VERSION whenever a cached asset changes. See ADR-008.
-const SHELL_VERSION = '2026-10-10.inspect-target';
+const SHELL_VERSION = '2026-10-10.say-input';
 const SHELL_ASSETS = [
   './index.html',
   './manifest.webmanifest',

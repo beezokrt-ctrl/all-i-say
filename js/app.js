@@ -212,8 +212,11 @@ export class AllISayApp {
   }
   async persistEntry() {
     const input = document.querySelector("#entryText");
-    const file = document.querySelector("#artifactFile")?.files?.[0];
-    const transcriptionText = document.querySelector("#artifactTranscription")?.value || "";
+    const fileInput = document.querySelector("#artifactFile");
+    const transcriptionInput = document.querySelector("#artifactTranscription");
+    const file = fileInput?.files?.[0];
+    const transcriptionText = transcriptionInput?.value || "";
+    const submittedText = input?.value || "";
     if (!input?.value.trim() && !file) {
       document.querySelector("#saveMessage").textContent = "Write something or attach a file first.";
       input?.focus();
@@ -253,6 +256,13 @@ export class AllISayApp {
         mimeType: file.type, capturedAt: null,
       }, words, transcription);
     } else await createUtterance(words);
+    const changed = (input?.value || "") !== submittedText ||
+      (transcriptionInput?.value || "") !== transcriptionText || fileInput?.files?.[0] !== file;
+    if (changed) {
+      document.querySelector("#saveMessage").textContent = "Kept in your record.";
+      await this.refreshFromArchive();
+      return;
+    }
     if (input) {
       input.value = "";
       input.blur();

@@ -1,7 +1,7 @@
 import { RESPONSE_TYPES } from "../../data/schema.js";
 import { escapeHTML } from "../views.js";
 
-export function responseComposer() {
+export function responseComposer(targetId) {
   const options = RESPONSE_TYPES.map((type) => {
     const label = type[0].toUpperCase() + type.slice(1).replaceAll("-", " ");
     return `<option value="${escapeHTML(type)}">${escapeHTML(label)}</option>`;
@@ -9,7 +9,8 @@ export function responseComposer() {
   return (
     '<details class="response-composer"><summary>Respond to these words</summary>' +
     '\n    <p class="small">Your response becomes new words. The words above stay as they ' +
-    'are.</p>\n    <form id="responseForm"><label for="responseText" ' +
+    'are.</p>\n    <form id="responseForm" data-target-id="' +
+    escapeHTML(targetId ?? "") + '"><label for="responseText" ' +
     'class="gathering-filter-label">Your response</label>' +
     '\n    <textarea id="responseText" class="response-text search-input" required>' +
     '</textarea>\n    <label for="responseType" class="gathering-filter-label">' +

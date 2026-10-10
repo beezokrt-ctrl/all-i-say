@@ -27,6 +27,7 @@ export class AllISayApp {
     this.returnScroll = 0;
     this.driftId = null;
     this.inspectId = null;
+    this.inspectRevision = 0;
     this.placesDirty = false;
     this.placeDetail = null;
     this.responseDrafts = new Map();
@@ -281,8 +282,9 @@ export class AllISayApp {
   }
   rememberResponseDraft() {
     const input = document.querySelector("#responseText");
-    if (input)
-      this.responseDrafts.set(this.inspectId, {
+    const targetId = document.querySelector("#responseForm")?.dataset.targetId;
+    if (input && targetId)
+      this.responseDrafts.set(targetId, {
         text: input.value,
         type: document.querySelector("#responseType").value,
       });
@@ -300,9 +302,13 @@ export class AllISayApp {
     if (this.savingResponse) return;
     const form = document.querySelector("#responseForm"),
       input = form.querySelector("#responseText");
-    const targetId = this.inspectId,
+    const targetId = form.dataset.targetId,
       button = form.querySelector("#saveResponse"),
       message = form.querySelector("#responseMessage");
+    if (!targetId || targetId !== this.inspectId) {
+      message.textContent = "Could not keep your response. Your words are still here. Try again.";
+      return;
+    }
     this.rememberResponseDraft();
     const submittedDraft = this.responseDrafts.get(targetId);
     this.savingResponse = true;
@@ -526,7 +532,11 @@ export class AllISayApp {
     if (!this.inspectId) return;
     const mount = document.querySelector("#inspectMount");
     if (mount) {
-      mount.innerHTML = inspectView(await getUtteranceInspection(this.inspectId));
+      const revision = ++this.inspectRevision;
+      const inspection = await getUtteranceInspection(this.inspectId);
+      if (revision !== this.inspectRevision) return;
+      this.inspectedText = inspection?.utterance.text;
+      mount.innerHTML = inspectView(inspection);
       this.restoreResponseDraft();
       document.querySelector("#openConstellationPicker")?.focus({ preventScroll: true });
     }
@@ -575,7 +585,9 @@ export class AllISayApp {
       this.returnScroll = window.scrollY;
     }
     this.inspectId = id;
+    const revision = ++this.inspectRevision;
     const inspection = await getUtteranceInspection(id);
+    if (revision !== this.inspectRevision) return;
     this.inspectedText = inspection?.utterance.text;
     mount.innerHTML = inspectView(inspection);
     this.restoreResponseDraft();

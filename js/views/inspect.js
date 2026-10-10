@@ -142,7 +142,7 @@ export function inspectView(inspection) {
     '</span><span class="tag">' +
     escapeHTML(utterance.source?.type || "unknown") +
     "</span></div></div>" +
-    responseComposer() +
+    responseComposer(utterance.id) +
     '<div class="inspect-section"><h2>Connected words</h2>' +
     relationMarkup +
     '</div><div class="inspect-section gathering-section"><h2>Gathered in</h2><div id="activeGatherings">' +

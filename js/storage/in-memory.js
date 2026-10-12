@@ -40,6 +40,7 @@ export class InMemoryArchiveRepository extends ArchiveRepository {
   async tombstoneUtterance(id, reason = null) {
     const current = this.utterances.get(id);
     if (!current) throw new Error(`Unknown utterance: ${id}`);
+    if (current.metadata.status === 'tombstoned') return clone(current);
     const tombstone = {
       ...current,
       metadata: { ...current.metadata, status: 'tombstoned' },
